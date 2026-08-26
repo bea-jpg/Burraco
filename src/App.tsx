@@ -3,6 +3,7 @@ import { type GameState, createInitialState, getPlayerTeamId, drawFromDeck, take
 import { chooseDrawAction, playSingleBotMeld, chooseBotDiscard } from './utils/botPlayer';
 import { CardView } from './components/CardView';
 import { MeldColumn } from './components/MeldColumn';
+import { MeldRow } from './components/MeldRow';
 import { PlayerWidget } from './components/PlayerWidget';
 
 import { type Card } from './types/card';
@@ -18,8 +19,23 @@ export default function App() {
   const [showScoreModal, setShowScoreModal] = useState<boolean>(false);
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [isPortrait, setIsPortrait] = useState<boolean>(false);
+  const [isMobile, setIsMobile] = useState<boolean>(false);
   
   const isBotRunningRef = useRef<boolean>(false);
+
+  // Rilevamento orientamento portrait e mobile
+  useEffect(() => {
+    const handleResize = () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      setIsPortrait(w < h);
+      setIsMobile(w < 1024);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Avvio di una nuova partita
   const startNewGame = () => {
@@ -365,270 +381,489 @@ export default function App() {
   const scoreResults = calculateRoundScores(gameState);
 
   return (
-    <div className="flex h-screen w-screen bg-[#090b0d] text-white overflow-hidden select-none font-sans">
-      {/* 1. Colonna Sinistra (Meld Squadra 1) */}
-      <MeldColumn
-        title="SQUADRA 1 (Noi)"
-        teamId={0}
-        melds={gameState.teams[0].melds}
-        titleColorClass="text-emerald-400"
-        onMeldClick={handleAddToMeld}
-        buttonText={gameState.currentPlayerIdx === 0 && gameMode === 'game' ? "[+] NUOVA CALATA" : undefined}
-        onButtonClick={handleNewMeld}
-        isButtonDisabled={gameState.turnPhase !== 'play'}
-        lastUpdatedMeld={lastUpdatedMeld}
-        points={gameState.teams[0].points}
-      />
+    <div className="flex h-[100dvh] w-screen bg-[#090b0d] text-white overflow-hidden select-none font-sans relative">
+      <style>{`
+        @keyframes slideInLeft {
+          from { transform: translateX(-100%); }
+          to { transform: translateX(0); }
+        }
+        @keyframes slideInRight {
+          from { transform: translateX(100%); }
+          to { transform: translateX(0); }
+        }
+        .animate-slide-in-left {
+          animation: slideInLeft 0.25s ease-out forwards;
+        }
+        .animate-slide-in-right {
+          animation: slideInRight 0.25s ease-out forwards;
+        }
+        .scrollbar-none::-webkit-scrollbar { display: none; }
+      `}</style>
 
-      {/* 2. Colonna Centrale (Tavolo Verde Casinò Realistico con Layout Assoluto) */}
-      <div 
-        className="flex-1 h-full relative select-none shadow-[inset_0_0_120px_rgba(0,0,0,0.9)] overflow-hidden"
-        style={{
-          background: 'radial-gradient(circle, #0f5135 0%, #08291a 65%, #03120c 100%)'
-        }}
-      >
-        {/* Cornice in Mogano Lucido 3D con inserti dorati */}
-        <div className="absolute inset-4 border-[14px] border-[#29170e] rounded-[48px] pointer-events-none shadow-[inset_0_4px_12px_rgba(0,0,0,0.95),_0_15px_30px_rgba(0,0,0,0.85)] z-0" />
-        <div className="absolute inset-[24px] border-[0.8px] border-[#d4af37]/35 rounded-[38px] pointer-events-none z-0" />
-        <div className="absolute inset-[27px] border-[0.3px] border-[#d4af37]/15 rounded-[35px] pointer-events-none z-0" />
+      {/* =====================================================================
+          LAYOUT ORIZZONTALE (Landscape Mobile & Desktop) — 3 colonne
+      ====================================================================== */}
+      {!isPortrait ? (
+        <div className="flex w-full h-full">
+          {/* Colonna Sinistra */}
+          <MeldColumn
+            title={isMobile ? "S1 (Noi)" : "SQUADRA 1 (Noi)"}
+            teamId={0}
+            melds={gameState.teams[0].melds}
+            titleColorClass="text-emerald-400"
+            onMeldClick={handleAddToMeld}
+            buttonText={gameState.currentPlayerIdx === 0 && gameMode === 'game' ? "[+] NUOVA CALATA" : undefined}
+            onButtonClick={handleNewMeld}
+            isButtonDisabled={gameState.turnPhase !== 'play'}
+            lastUpdatedMeld={lastUpdatedMeld}
+            points={gameState.teams[0].points}
+            cardSize={isMobile ? 'mini' : 'normal'}
+          />
 
-        {/* Pozzetti in alto a sinistra sul feltro (fuori dal flusso orizzontale per evitare tagli dei bot) */}
-        <div className="absolute top-10 left-10 z-20 flex items-center min-w-[70px] min-h-[90px]">
-          {gameState.pozzetti.length === 0 ? (
-            <div className="w-14 h-20 rounded-md border border-dashed border-[#d4af37]/10 flex items-center justify-center text-[7px] text-[#d4af37]/25 font-black tracking-widest text-center px-1">
-              POZZETTI PRESI
+          {/* Tavolo Verde Centrale */}
+          <div
+            className="flex-1 h-full relative select-none shadow-[inset_0_0_120px_rgba(0,0,0,0.9)] overflow-hidden"
+            style={{ background: 'radial-gradient(circle, #0f5135 0%, #08291a 65%, #03120c 100%)' }}
+          >
+            <div className="absolute inset-2 sm:inset-4 border-[8px] sm:border-[14px] border-[#29170e] rounded-[32px] sm:rounded-[48px] pointer-events-none shadow-[inset_0_4px_12px_rgba(0,0,0,0.95),_0_15px_30px_rgba(0,0,0,0.85)] z-0" />
+            <div className="absolute inset-[12px] sm:inset-[24px] border-[0.8px] border-[#d4af37]/35 rounded-[26px] sm:rounded-[38px] pointer-events-none z-0" />
+
+            {/* Pozzetti */}
+            <div className="absolute top-2 left-2 sm:top-6 sm:left-6 lg:top-10 lg:left-10 z-20 flex items-center min-w-[50px] sm:min-w-[70px] min-h-[70px] sm:min-h-[90px]">
+              {gameState.pozzetti.length === 0 ? (
+                <div className="w-10 h-14 sm:w-14 sm:h-20 rounded-md border border-dashed border-[#d4af37]/10 flex items-center justify-center text-[6px] sm:text-[7px] text-[#d4af37]/25 font-black tracking-widest text-center px-1">
+                  POZZETTI PRESI
+                </div>
+              ) : (
+                gameState.pozzetti.map((_, pIdx) => (
+                  <div key={pIdx} className="absolute shadow-[3px_3px_6px_rgba(0,0,0,0.55)] transition-all duration-300"
+                    style={{ left: `${pIdx * 10}px`, zIndex: 10 + pIdx, transform: pIdx === 0 ? 'rotate(-6deg)' : 'rotate(6deg)' }}>
+                    <CardView card={null} size={isMobile ? 'mini' : 'normal'} />
+                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-[6px] sm:text-[7px] font-black text-[#d4af37]/90 whitespace-nowrap bg-slate-950/80 px-1 py-0.5 rounded border border-[#d4af37]/15">
+                      POZZ. {pIdx + 1}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
-          ) : (
-            gameState.pozzetti.map((_, pIdx) => (
-              <div
-                key={pIdx}
-                className="absolute shadow-[3px_3px_6px_rgba(0,0,0,0.55)] transition-all duration-300"
-                style={{
-                  left: `${pIdx * 14}px`,
-                  zIndex: 10 + pIdx,
-                  transform: pIdx === 0 ? 'rotate(-6deg)' : 'rotate(6deg)'
-                }}
-              >
-                <CardView card={null} size="normal" />
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 text-[7px] font-black text-[#d4af37]/90 whitespace-nowrap bg-slate-950/80 px-1 py-0.5 rounded border border-[#d4af37]/15">
-                  POZZETTO {pIdx + 1}
+
+            {/* Badge Round + Esci */}
+            <div className="absolute top-2 right-2 sm:top-6 sm:right-6 lg:top-10 lg:right-10 z-20 flex items-center gap-1.5 sm:gap-3">
+              <div className="bg-slate-950/85 backdrop-blur-md border border-[#d4af37]/30 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl shadow-md text-[8px] sm:text-[10px] font-black text-amber-400 tracking-wider">
+                R.{gameState.roundNumber}
+              </div>
+              <button onClick={() => setGameMode('menu')}
+                className="px-2 sm:px-3 py-1 sm:py-1.5 bg-rose-950/70 hover:bg-rose-900 border border-rose-500/35 text-rose-200 font-extrabold text-[8px] sm:text-[10px] uppercase tracking-wider rounded-lg sm:rounded-xl transition-all active:scale-95 shadow-md">
+                ESCI
+              </button>
+            </div>
+
+            {/* Bot 3 top */}
+            <div className="absolute top-1 sm:top-4 lg:top-8 left-1/2 -translate-x-1/2 z-10 scale-90 sm:scale-100">
+              <PlayerWidget name="Bot 3" role="Compagno (S1)" cardCount={gameState.hands[2].length} isActive={gameState.currentPlayerIdx === 2} />
+            </div>
+
+            {/* Bot 2 sx */}
+            <div className="absolute left-1 sm:left-4 lg:left-8 top-[38%] -translate-y-1/2 z-10 scale-85 sm:scale-100">
+              <PlayerWidget name="Bot 2" role="Avversario (S2)" cardCount={gameState.hands[1].length} isActive={gameState.currentPlayerIdx === 1} />
+            </div>
+
+            {/* Status pill */}
+            <div key={gameState.history.length}
+              className="absolute left-1/2 top-[22%] sm:top-[24%] -translate-x-1/2 -translate-y-1/2 z-20 px-3 sm:px-6 py-1 sm:py-2.5 bg-slate-950/85 backdrop-blur-md border border-[#d4af37]/30 rounded-full shadow-[0_6px_20px_rgba(0,0,0,0.6)] max-w-[200px] sm:max-w-sm text-center animate-card-pop truncate">
+              <span className="text-[#d4af37] font-extrabold text-[8px] sm:text-xs tracking-wider drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]">
+                {gameState.history[gameState.history.length - 1]}
+              </span>
+            </div>
+
+            {/* Mazzo e Scarti */}
+            <div className="absolute left-1/2 top-[40%] sm:top-[44%] -translate-x-1/2 -translate-y-1/2 z-10 flex flex-col items-center">
+              <div className="flex items-center gap-6 sm:gap-10">
+                <div className="relative group">
+                  {gameState.deck.length > 3 && (
+                    <>
+                      <div className="absolute top-[1px] left-[1px] w-9 h-13 sm:w-14 sm:h-20 bg-[#0c1a30] rounded border border-[#d4af37]/10" />
+                      <div className="absolute top-[2px] left-[2px] w-9 h-13 sm:w-14 sm:h-20 bg-[#0c1a30] rounded border border-[#d4af37]/15" />
+                    </>
+                  )}
+                  <div className="relative shadow-[1px_1px_0_#d4af37,_2px_2px_0_#d4af37,_3px_3px_8px_rgba(0,0,0,0.75)] rounded">
+                    <CardView card={null} onClick={handleHumanDraw} size={isMobile ? 'mini' : 'normal'} />
+                  </div>
+                  <div className="absolute -bottom-4 sm:-bottom-6 left-1/2 -translate-x-1/2 text-[7px] sm:text-[9px] font-black text-slate-400 tracking-wider whitespace-nowrap">
+                    {gameState.deck.length} CARTE
+                  </div>
+                </div>
+
+                <div className="relative flex items-center min-w-[60px] sm:min-w-[85px] min-h-[60px] sm:min-h-[90px] group cursor-pointer"
+                  onClick={handleScartiClick}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    const srcIdx = Number(e.dataTransfer.getData("text/plain"));
+                    if (gameState.currentPlayerIdx === 0 && gameState.turnPhase === 'play') {
+                      const card = gameState.hands[0][srcIdx];
+                      handleDiscard(card);
+                    }
+                  }}>
+                  {gameState.discardPile.length === 0 ? (
+                    <div className="w-9 h-13 sm:w-14 sm:h-20 rounded border border-dashed border-[#d4af37]/20 flex items-center justify-center text-[7px] sm:text-[8px] text-[#d4af37]/40 font-black tracking-widest">
+                      SCARTI
+                    </div>
+                  ) : (
+                    gameState.discardPile.slice(-6).map((card, idx, arr) => {
+                      const angle = (idx - (arr.length - 1) / 2) * 6;
+                      return (
+                        <div key={card.id} className="absolute transition-transform duration-200 hover:scale-105 hover:z-50"
+                          style={{ left: `${idx * (isMobile ? 10 : 14)}px`, zIndex: idx, transform: `rotate(${angle}deg)` }}>
+                          <CardView card={card} size={isMobile ? 'mini' : 'normal'} />
+                        </div>
+                      );
+                    })
+                  )}
+                  {gameState.discardPile.length > 0 && (
+                    <div className="absolute -bottom-4 sm:-bottom-5 left-1/2 -translate-x-1/2 text-[7px] sm:text-[9px] font-black text-slate-400 tracking-wider whitespace-nowrap">
+                      PILA ({gameState.discardPile.length})
+                    </div>
+                  )}
                 </div>
               </div>
-            ))
-          )}
-        </div>
+            </div>
 
-        {/* Badge e pulsante ESCI in alto a destra (estremamente compatto per evitare sovrapposizioni con Bot 3) */}
-        <div className="absolute top-10 right-10 z-20 flex items-center gap-3">
-          <div className="bg-slate-950/85 backdrop-blur-md border border-[#d4af37]/30 px-3 py-1.5 rounded-xl shadow-md text-[10px] font-black text-amber-400 tracking-wider">
-            ROUND {gameState.roundNumber}
+            {/* Bot 4 dx */}
+            <div className="absolute right-1 sm:right-4 lg:right-8 top-[38%] -translate-y-1/2 z-10 scale-85 sm:scale-100">
+              <PlayerWidget name="Bot 4" role="Avversario (S2)" cardCount={gameState.hands[3].length} isActive={gameState.currentPlayerIdx === 3} />
+            </div>
+
+            {/* Giocatore umano */}
+            <div className="absolute bottom-1 sm:bottom-4 lg:bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 sm:gap-2 z-10">
+              <div className="flex items-center gap-2 sm:gap-6">
+                <button onClick={() => sortHand('value')}
+                  className="px-2 sm:px-3 py-0.5 sm:py-1 bg-slate-900 hover:bg-slate-800 border border-amber-500/30 text-amber-500 font-bold text-[7px] sm:text-[9px] uppercase tracking-wider rounded-md transition-all active:scale-95 shadow">
+                  Ordina Val.
+                </button>
+                <span className={`text-[8px] sm:text-[10px] uppercase whitespace-nowrap transition-all duration-300 px-2 sm:px-4 py-0.5 sm:py-1.5 rounded-full
+                  ${gameState.currentPlayerIdx === 0 && gameMode === 'game'
+                    ? 'bg-amber-500/15 border border-amber-500/40 text-amber-300 font-black tracking-[0.15em] sm:tracking-[0.2em] scale-105 shadow-[0_0_15px_rgba(245,158,11,0.35)] animate-pulse'
+                    : 'text-slate-400 font-bold tracking-widest border border-transparent'
+                  }`}>
+                  {gameState.currentPlayerIdx === 0 && gameMode === 'game' ? '★ IL TUO TURNO ★' : 'La tua mano'}
+                </span>
+                <button onClick={() => sortHand('suit')}
+                  className="px-2 sm:px-3 py-0.5 sm:py-1 bg-slate-900 hover:bg-slate-800 border border-amber-500/30 text-amber-500 font-bold text-[7px] sm:text-[9px] uppercase tracking-wider rounded-md transition-all active:scale-95 shadow">
+                  Ordina Seme
+                </button>
+              </div>
+              {(() => {
+                const hand = gameState.hands[0];
+                const N = hand.length;
+                const maxFanWidth = isMobile ? 280 : 380;
+                const spacing = N <= 1 ? 52 : Math.min(44, maxFanWidth / (N - 1));
+                const handWidth = N === 0 ? 0 : (N - 1) * spacing + 56;
+                return (
+                  <div data-testid="hand-fan" className="relative h-20 sm:h-24 overflow-visible transition-all duration-300" style={{ width: `${handWidth}px` }}>
+                    {hand.map((card, idx) => {
+                      const isSelected = selectedCardIds.has(card.id);
+                      const isDraggingThis = draggedIdx === idx;
+                      const isHoveredTarget = dragOverIdx === idx && draggedIdx !== null && draggedIdx !== idx;
+                      return (
+                        <div key={card.id} draggable={gameMode === 'game'}
+                          onDragStart={(e) => handleDragStart(e, idx)}
+                          onDragOver={(e) => handleDragOverCard(e, idx)}
+                          onDragLeave={() => { if (dragOverIdx === idx) setDragOverIdx(null); }}
+                          onDrop={(e) => handleDrop(e, idx)}
+                          onDragEnd={() => { setDraggedIdx(null); setDragOverIdx(null); }}
+                          data-testid="hand-card" data-card-id={card.id}
+                          className={`absolute w-14 h-20 transition-all duration-300 ease-out cursor-grab active:cursor-grabbing select-none
+                            ${isDraggingThis ? 'opacity-20 scale-95 z-0' : 'opacity-100'}
+                            ${isHoveredTarget ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-slate-950 rounded-md scale-105 z-40 shadow-2xl' : ''}
+                            ${draggedIdx === null && !isDraggingThis ? 'hover:!-translate-y-4 hover:!z-50 hover:shadow-xl' : ''}`}
+                          style={{
+                            left: `${idx * spacing}px`,
+                            transform: isSelected ? 'translateY(-20px)' : undefined,
+                            zIndex: isHoveredTarget ? 30 : idx + 10,
+                          }}
+                          onClick={() => toggleCardSelect(card.id)}
+                          onTouchEnd={(e) => {
+                            e.preventDefault();
+                            toggleCardSelect(card.id);
+                          }}
+                        >
+                          <CardView card={card} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
           </div>
-          <button
-            onClick={() => setGameMode('menu')}
-            className="px-3 py-1.5 bg-rose-950/70 hover:bg-rose-900 border border-rose-500/35 text-rose-200 font-extrabold text-[10px] uppercase tracking-wider rounded-xl transition-all active:scale-95 shadow-md"
-          >
-            ESCI
+
+          {/* Colonna Destra */}
+          <MeldColumn
+            title={isMobile ? "S2 (Avv.)" : "SQUADRA 2"}
+            teamId={1}
+            melds={gameState.teams[1].melds}
+            titleColorClass="text-red-400"
+            lastUpdatedMeld={lastUpdatedMeld}
+            points={gameState.teams[1].points}
+            cardSize={isMobile ? 'mini' : 'normal'}
+          />
+        </div>
+      ) : (
+        /* =====================================================================
+            LAYOUT VERTICALE (Portrait Mobile) — Cascata e sezioni verticali
+        ====================================================================== */
+        <div className="flex flex-col w-full h-full bg-[#071a0f]">
+
+        {/* ── TOP BAR: info round + avatar bot ─────────────────────────── */}
+        <div className="flex items-center justify-between px-2 py-1.5 bg-slate-950/90 border-b border-slate-900 shrink-0 gap-1.5">
+          {/* Pozzetti (compact) */}
+          <div className="flex items-center gap-0.5 shrink-0">
+            {gameState.pozzetti.length === 0 ? (
+              <span className="text-[6px] text-slate-600 font-bold uppercase tracking-wider px-0.5">📦</span>
+            ) : (
+              gameState.pozzetti.map((_, pIdx) => (
+                <div key={pIdx} className="relative w-5 h-7">
+                  <CardView card={null} size="micro" />
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Bot2 — AVVERSARIO sx */}
+          <div className={`flex flex-col items-center px-1.5 py-0.5 rounded-lg border text-[8px] font-bold shrink-0 min-w-[36px]
+            ${gameState.currentPlayerIdx === 1
+              ? 'border-amber-400 bg-amber-500/15 text-amber-300'
+              : 'border-red-900/60 bg-red-950/40 text-red-400'}`}>
+            <span className="text-[6px] leading-none">⚔️ avv.</span>
+            <span className="font-black text-[9px] leading-none mt-0.5">{gameState.hands[1].length}</span>
+          </div>
+
+          {/* Bot3 — ALLEATO (compagno) */}
+          <div className={`flex flex-col items-center px-1.5 py-0.5 rounded-lg border text-[8px] font-bold shrink-0 min-w-[36px]
+            ${gameState.currentPlayerIdx === 2
+              ? 'border-amber-400 bg-amber-500/15 text-amber-300'
+              : 'border-emerald-800/60 bg-emerald-950/40 text-emerald-400'}`}>
+            <span className="text-[6px] leading-none">🤝 ally</span>
+            <span className="font-black text-[9px] leading-none mt-0.5">{gameState.hands[2].length}</span>
+          </div>
+
+          {/* Badge Round */}
+          <span className="text-[9px] font-black text-amber-400 bg-slate-900 border border-[#d4af37]/30 px-1.5 py-1 rounded-lg shrink-0">
+            R.{gameState.roundNumber}
+          </span>
+
+          {/* Bot4 — AVVERSARIO dx */}
+          <div className={`flex flex-col items-center px-1.5 py-0.5 rounded-lg border text-[8px] font-bold shrink-0 min-w-[36px]
+            ${gameState.currentPlayerIdx === 3
+              ? 'border-amber-400 bg-amber-500/15 text-amber-300'
+              : 'border-red-900/60 bg-red-950/40 text-red-400'}`}>
+            <span className="text-[6px] leading-none">⚔️ avv.</span>
+            <span className="font-black text-[9px] leading-none mt-0.5">{gameState.hands[3].length}</span>
+          </div>
+
+          {/* ESCI */}
+          <button onClick={() => setGameMode('menu')}
+            className="px-2 py-1 bg-rose-950/70 hover:bg-rose-900 border border-rose-500/35 text-rose-300 font-extrabold text-[9px] uppercase rounded-lg transition-all active:scale-95 shrink-0">
+            ✕
           </button>
         </div>
 
-        {/* COMPAGNO (Bot 3 - Top Centrato) */}
-        <div className="absolute top-10 left-1/2 -translate-x-1/2 z-10">
-          <PlayerWidget
-            name="Bot 3"
-            role="Compagno (S1)"
-            cardCount={gameState.hands[2].length}
-            isActive={gameState.currentPlayerIdx === 2}
+        {/* ── ZONA AVVERSARI: calate Squadra 2 (Ampio spazio a colonna) ────── */}
+        <div className="flex-1 min-h-[90px] max-h-[40%] bg-[#040f08]/90 border-b border-slate-900/60 flex flex-col overflow-hidden">
+          <MeldRow
+            teamId={1}
+            melds={gameState.teams[1].melds}
+            titleColorClass="text-red-400"
+            teamLabel="⚔️ Avversari"
+            points={gameState.teams[1].points}
+            lastUpdatedMeld={lastUpdatedMeld}
           />
         </div>
 
-        {/* Bot 2 (Sinistra - Posizionato in modo assoluto e specchiato simmetricamente a Bot 4) */}
-        <div className="absolute left-10 top-[44%] -translate-y-1/2 z-10">
-          <PlayerWidget
-            name="Bot 2"
-            role="Avversario (S2)"
-            cardCount={gameState.hands[1].length}
-            isActive={gameState.currentPlayerIdx === 1}
-          />
-        </div>
-
-        {/* Pillola status in vetro dorato con animazione pop ad ogni cambio mossa (posizionata a top-[24%] per evitare sovrapposizioni con Bot 2 e Bot 4) */}
-        <div 
-          key={gameState.history.length}
-          className="absolute left-1/2 top-[24%] -translate-x-1/2 -translate-y-1/2 z-20 px-6 py-2.5 bg-slate-950/80 backdrop-blur-md border border-[#d4af37]/30 rounded-full shadow-[0_6px_20px_rgba(0,0,0,0.6)] max-w-sm text-center animate-card-pop"
-        >
-          <span className="text-[#d4af37] font-extrabold text-xs tracking-wider drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]">
+        {/* ── ZONA CENTRALE: Mazzo + Scarti + Status (Compatta) ─────────── */}
+        <div className="shrink-0 flex items-center justify-center gap-8 py-1.5 px-4 bg-[#071a0f] relative border-b border-slate-900/40">
+          {/* Status pill */}
+          <div key={gameState.history.length}
+            className="absolute -top-2 left-1/2 -translate-x-1/2 z-10 px-3 py-0.5 bg-slate-950/90 border border-[#d4af37]/25 rounded-full text-[8px] font-bold text-[#d4af37] whitespace-nowrap max-w-[60vw] truncate animate-card-pop shadow-md">
             {gameState.history[gameState.history.length - 1]}
-          </span>
-        </div>
+          </div>
 
-        {/* AREA CENTRALE: Mazzo e Scarti (Centrata Assoluta al 44%) */}
-        <div className="absolute left-1/2 top-[44%] -translate-x-1/2 -translate-y-1/2 z-10 flex flex-col items-center">
-          {/* Mazzo e Scarti */}
-          <div className="flex items-center gap-10">
-            {/* Mazzo (Tallone 3D Stack) */}
-            <div className="relative group">
-              {gameState.deck.length > 5 && (
-                <>
-                  <div className="absolute top-[1.5px] left-[1.5px] w-14 h-20 bg-[#0c1a30] rounded-md border border-[#d4af37]/10" />
-                  <div className="absolute top-[3px] left-[3px] w-14 h-20 bg-[#0c1a30] rounded-md border border-[#d4af37]/15" />
-                  <div className="absolute top-[4.5px] left-[4.5px] w-14 h-20 bg-[#0c1a30] rounded-md border border-[#d4af37]/20" />
-                </>
-              )}
-              <div className="relative shadow-[1px_1px_0_#d4af37,_2px_2px_0_#d4af37,_3px_3px_0_#d4af37,_4px_4px_12px_rgba(0,0,0,0.75)] rounded-md">
-                <CardView
-                  card={null}
-                  onClick={handleHumanDraw}
-                />
-              </div>
-              <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[9px] font-black text-slate-400 tracking-wider whitespace-nowrap">
-                {gameState.deck.length} CARTE
-              </div>
+          {/* Mazzo */}
+          <div className="relative group mt-2 flex flex-col items-center">
+            {gameState.deck.length > 3 && (
+              <>
+                <div className="absolute top-[1px] left-[1px] w-9 h-13 bg-[#0c1a30] rounded border border-[#d4af37]/10" />
+                <div className="absolute top-[2px] left-[2px] w-9 h-13 bg-[#0c1a30] rounded border border-[#d4af37]/15" />
+              </>
+            )}
+            <div className="relative shadow-[1px_1px_0_#d4af37,_2px_2px_0_#d4af37,_3px_3px_8px_rgba(0,0,0,0.75)] rounded">
+              <CardView card={null} onClick={handleHumanDraw} size="mini" />
             </div>
+            <div className="text-center text-[7px] font-black text-slate-400 mt-0.5 whitespace-nowrap">{gameState.deck.length} carte</div>
+          </div>
 
-            {/* Scarti (Fanned con clic e drop abilitati) */}
-            <div 
-              className="relative flex items-center min-w-[85px] min-h-[90px] group cursor-pointer"
-              onClick={handleScartiClick}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                const srcIdx = Number(e.dataTransfer.getData("text/plain"));
-                if (gameState.currentPlayerIdx === 0 && gameState.turnPhase === 'play') {
-                  const card = gameState.hands[0][srcIdx];
-                  handleDiscard(card);
-                }
-              }}
-            >
-              {gameState.discardPile.length === 0 ? (
-                <div className="w-14 h-20 rounded-md border border-dashed border-[#d4af37]/20 flex items-center justify-center text-[8px] text-[#d4af37]/40 font-black tracking-widest">
-                  SCARTI
-                </div>
-              ) : (
-                gameState.discardPile.slice(-8).map((card, idx, arr) => {
-                  const angle = (idx - (arr.length - 1) / 2) * 6;
-                  return (
-                    <div
-                      key={card.id}
-                      className="absolute transition-transform duration-200 hover:scale-105 hover:z-50"
-                      style={{ 
-                        left: `${idx * 14}px`, 
-                        zIndex: idx,
-                        transform: `rotate(${angle}deg)`
-                      }}
-                    >
-                      <CardView card={card} />
-                    </div>
-                  );
-                })
-              )}
-              {gameState.discardPile.length > 0 && (
-                <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[9px] font-black text-slate-400 tracking-wider whitespace-nowrap">
-                  PILA ({gameState.discardPile.length})
-                </div>
-              )}
+          {/* Scarti */}
+          <div className="relative flex items-center cursor-pointer mt-2" style={{ minWidth: '45px', minHeight: '52px' }}
+            onClick={handleScartiClick}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              const srcIdx = Number(e.dataTransfer.getData("text/plain"));
+              if (gameState.currentPlayerIdx === 0 && gameState.turnPhase === 'play') {
+                handleDiscard(gameState.hands[0][srcIdx]);
+              }
+            }}>
+            {gameState.discardPile.length === 0 ? (
+              <div className="w-9 h-13 rounded border border-dashed border-[#d4af37]/20 flex items-center justify-center text-[6px] text-[#d4af37]/40 font-black">
+                SCARTI
+              </div>
+            ) : (
+              gameState.discardPile.slice(-6).map((card, idx, arr) => {
+                const angle = (idx - (arr.length - 1) / 2) * 5;
+                return (
+                  <div key={card.id} className="absolute transition-transform duration-200"
+                    style={{ left: `${idx * 8}px`, zIndex: idx, transform: `rotate(${angle}deg)` }}>
+                    <CardView card={card} size="mini" />
+                  </div>
+                );
+              })
+            )}
+            <div className="text-center text-[7px] font-black text-slate-400 absolute -bottom-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap">
+              {gameState.discardPile.length > 0 ? `Pila (${gameState.discardPile.length})` : ''}
             </div>
           </div>
         </div>
 
-        {/* Bot 4 (Destra - Posizionato in modo assoluto e specchiato simmetricamente a Bot 2) */}
-        <div className="absolute right-10 top-[44%] -translate-y-1/2 z-10">
-          <PlayerWidget
-            name="Bot 4"
-            role="Avversario (S2)"
-            cardCount={gameState.hands[3].length}
-            isActive={gameState.currentPlayerIdx === 3}
+        {/* ── ZONA NOI: calate Squadra 1 + pulsante calata (Ampio spazio a colonna) */}
+        <div className="flex-1 min-h-[110px] max-h-[45%] bg-[#040f08]/90 border-b border-slate-900/60 flex flex-col overflow-hidden">
+          <MeldRow
+            teamId={0}
+            melds={gameState.teams[0].melds}
+            titleColorClass="text-emerald-400"
+            teamLabel="👥 Noi"
+            points={gameState.teams[0].points}
+            onMeldClick={handleAddToMeld}
+            lastUpdatedMeld={lastUpdatedMeld}
+            actionButton={
+              gameState.currentPlayerIdx === 0 && gameMode === 'game' ? (
+                <button
+                  onClick={() => {
+                    if (gameState.turnPhase !== 'play') {
+                      alert("Devi prima PESCARE una carta dal mazzo o dagli scarti!");
+                      return;
+                    }
+                    if (selectedCardIds.size === 0) {
+                      alert("Seleziona prima dalla tua mano le carte da calare (tocca 3 o più carte)!");
+                      return;
+                    }
+                    handleNewMeld();
+                  }}
+                  className={`px-3 py-1 font-black text-[9px] uppercase tracking-wider rounded-lg transition-all shadow-md active:scale-95 border ${
+                    gameState.turnPhase === 'play' && selectedCardIds.size >= 3
+                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white border-emerald-300 animate-pulse'
+                      : gameState.turnPhase === 'play'
+                      ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40 hover:bg-emerald-900'
+                      : 'bg-slate-900/80 text-slate-500 border-slate-800'
+                  }`}
+                >
+                  [+] NUOVA CALATA
+                </button>
+              ) : undefined
+            }
           />
         </div>
 
-        {/* GIOCATORE UMANO (Bottom Centrato Assoluto) */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-3 z-10">
-          {/* Header mano con pulsanti ordinamento */}
-          <div className="flex items-center gap-6">
-            <button
-              onClick={() => sortHand('value')}
-              className="px-3 py-1 bg-slate-900 hover:bg-slate-800 border border-amber-500/30 text-amber-500 font-bold text-[9px] uppercase tracking-wider rounded-md transition-all active:scale-95 shadow"
-            >
-              Ordina Valore
+        {/* ── MANO GIOCATORE (Compatta in fondo) ─────────────────────────── */}
+        <div className="shrink-0 flex flex-col justify-end pb-2 bg-[#071a0f]" style={{ overflow: 'visible' }}>
+          {/* Header mano con bottoni ordinamento e barra azioni dinamica */}
+          <div className="flex items-center justify-between px-2.5 py-1 shrink-0 gap-1.5">
+            <button onClick={() => sortHand('value')}
+              className="px-2 py-1 bg-slate-900 border border-amber-500/25 text-amber-500 font-bold text-[8px] uppercase tracking-wide rounded-md transition-all active:scale-95">
+              Valore
             </button>
-            
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">
-              {gameState.currentPlayerIdx === 0 && gameMode === 'game' ? '★ IL TUO TURNO ★' : 'La tua mano'}
-            </span>
 
-            <button
-              onClick={() => sortHand('suit')}
-              className="px-3 py-1 bg-slate-900 hover:bg-slate-800 border border-amber-500/30 text-amber-500 font-bold text-[9px] uppercase tracking-wider rounded-md transition-all active:scale-95 shadow"
-            >
-              Ordina Seme
+            {/* Azione contestuale centrale basata sullo stato del turno */}
+            {gameState.currentPlayerIdx === 0 && gameMode === 'game' ? (
+              gameState.turnPhase === 'draw' ? (
+                <span className="text-[8.5px] uppercase whitespace-nowrap px-3 py-1 rounded-full font-black bg-amber-500/15 border border-amber-500/40 text-amber-300 tracking-wider animate-pulse">
+                  👉 Pesca dal mazzo o scarti
+                </span>
+              ) : selectedCardIds.size >= 3 ? (
+                <button
+                  onClick={handleNewMeld}
+                  className="px-3.5 py-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 border border-emerald-300 text-white font-black text-[9px] uppercase tracking-wider rounded-full shadow-[0_0_12px_rgba(16,185,129,0.5)] animate-pulse active:scale-95"
+                >
+                  ✨ CALA ({selectedCardIds.size} CARTE)
+                </button>
+              ) : selectedCardIds.size === 1 ? (
+                <button
+                  onClick={() => {
+                    const selectedCardId = Array.from(selectedCardIds)[0];
+                    const card = gameState.hands[0].find(c => c.id === selectedCardId);
+                    if (card) handleDiscard(card);
+                  }}
+                  className="px-3 py-1 bg-gradient-to-r from-rose-600 to-amber-600 border border-rose-400 text-white font-black text-[8.5px] uppercase tracking-wider rounded-full shadow-md active:scale-95"
+                >
+                  🗑️ SCARTA CARTA
+                </button>
+              ) : (
+                <span className="text-[9px] uppercase whitespace-nowrap px-3 py-1 rounded-full font-black bg-amber-500/15 border border-amber-500/40 text-amber-300 tracking-[0.15em] shadow-[0_0_12px_rgba(245,158,11,0.3)] animate-pulse">
+                  ★ IL TUO TURNO ★
+                </span>
+              )
+            ) : (
+              <span className="text-[8.5px] uppercase whitespace-nowrap px-3 py-1 rounded-full font-bold text-slate-500 border border-transparent tracking-wider">
+                La tua mano
+              </span>
+            )}
+
+            <button onClick={() => sortHand('suit')}
+              className="px-2 py-1 bg-slate-900 border border-amber-500/25 text-amber-500 font-bold text-[8px] uppercase tracking-wide rounded-md transition-all active:scale-95">
+              Seme
             </button>
           </div>
 
-          {/* Carte in mano fanned con posizionamento assoluto ed animazione drag realistica */}
+          {/* Carte in mano */}
           {(() => {
             const hand = gameState.hands[0];
             const N = hand.length;
-            const spacing = N <= 1 ? 62 : Math.min(48, 380 / (N - 1));
+            const maxFanWidth = isPortrait ? Math.min(window.innerWidth - 24, 320) : Math.min(window.innerWidth - 24, 400);
+            const spacing = N <= 1 ? 48 : Math.min(44, maxFanWidth / (N - 1));
             const handWidth = N === 0 ? 0 : (N - 1) * spacing + 56;
             return (
-              <div 
-                className="relative h-24 overflow-visible transition-all duration-300"
-                style={{ width: `${handWidth}px` }}
-              >
-                {hand.map((card, idx) => {
-                  const isSelected = selectedCardIds.has(card.id);
-                  const isDraggingThis = draggedIdx === idx;
-                  const isHoveredTarget = dragOverIdx === idx && draggedIdx !== null && draggedIdx !== idx;
-                  
-                  return (
-                    <div
-                      key={card.id}
-                      draggable={gameMode === 'game'}
-                      onDragStart={(e) => handleDragStart(e, idx)}
-                      onDragOver={(e) => handleDragOverCard(e, idx)}
-                      onDragLeave={() => {
-                        if (dragOverIdx === idx) setDragOverIdx(null);
-                      }}
-                      onDrop={(e) => handleDrop(e, idx)}
-                      onDragEnd={() => {
-                        setDraggedIdx(null);
-                        setDragOverIdx(null);
-                      }}
-                      data-testid="hand-card"
-                      data-card-id={card.id}
-                      className={`absolute w-14 h-20 transition-all duration-300 ease-out cursor-grab active:cursor-grabbing select-none
-                        ${isDraggingThis ? 'opacity-20 scale-95 z-0' : 'opacity-100'}
-                        ${isHoveredTarget ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-slate-950 rounded-md scale-105 z-40 shadow-2xl' : ''}
-                        ${draggedIdx === null && !isDraggingThis ? 'hover:!-translate-y-4 hover:!z-50 hover:shadow-xl' : ''}
-                      `}
-                      style={{ 
-                        left: `${idx * spacing}px`,
-                        transform: isSelected ? 'translateY(-24px)' : undefined,
-                        zIndex: isHoveredTarget ? 30 : idx + 10,
-                      }}
-                    >
-                      <CardView
-                        card={card}
+              <div className="w-full" style={{ overflowX: 'clip', overflowY: 'visible', paddingTop: '24px' }}>
+                <div data-testid="hand-fan" className="relative h-24 mx-auto" style={{ width: `${handWidth}px`, overflow: 'visible' }}>
+                  {hand.map((card, idx) => {
+                    const isSelected = selectedCardIds.has(card.id);
+                    return (
+                      <div
+                        key={card.id}
+                        draggable={false}
+                        data-testid="hand-card"
+                        data-card-id={card.id}
+                        className={`absolute w-14 h-20 transition-all duration-200 ease-out cursor-pointer select-none
+                          ${isSelected ? 'ring-2 ring-amber-400 rounded-md' : ''}`}
+                        style={{
+                          left: `${idx * spacing}px`,
+                          transform: isSelected ? 'translateY(-20px)' : undefined,
+                          zIndex: idx + 10,
+                        }}
                         onClick={() => toggleCardSelect(card.id)}
-                      />
-                    </div>
-                  );
-                })}
+                        onTouchEnd={(e) => {
+                          e.preventDefault();
+                          toggleCardSelect(card.id);
+                        }}
+                      >
+                        <CardView card={card} />
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             );
           })()}
         </div>
       </div>
-
-      {/* 3. Colonna Destra (Meld Squadra 2) */}
-      <MeldColumn
-        title="SQUADRA 2"
-        teamId={1}
-        melds={gameState.teams[1].melds}
-        titleColorClass="text-red-400"
-        lastUpdatedMeld={lastUpdatedMeld}
-        points={gameState.teams[1].points}
-      />
-
-
+      )}
 
       {/* MODAL BREAKDOWN PUNTEGGI DI FINE ROUND */}
       {showScoreModal && (
@@ -641,7 +876,6 @@ export default function App() {
             <h3 className="text-2xl font-extrabold tracking-wide text-amber-500 mb-1">FINE ROUND {gameState.roundNumber}</h3>
             <p className="text-xs text-slate-400 font-medium mb-6">Dettaglio calcolo punteggi del round</p>
 
-            {/* Tabella dettagliata dei punti */}
             <div className="grid grid-cols-3 gap-y-3 text-xs text-left mb-8 border-b border-t border-slate-800 py-4 px-2">
               <div className="font-bold text-slate-400">Dettaglio Punti</div>
               <div className="font-bold text-center text-emerald-400">S1 (Noi)</div>
@@ -684,10 +918,8 @@ export default function App() {
               </div>
             </div>
 
-            <button
-              onClick={() => startNextRound(scoreResults.scores)}
-              className="flex items-center justify-center gap-2 w-full py-3.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-black font-extrabold text-xs tracking-wider rounded-xl transition-all shadow-md active:scale-95"
-            >
+            <button onClick={() => startNextRound(scoreResults.scores)}
+              className="flex items-center justify-center gap-2 w-full py-3.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-black font-extrabold text-xs tracking-wider rounded-xl transition-all shadow-md active:scale-95">
               <CheckCircle size={15} />
               Prosegui Partita
             </button>
@@ -696,4 +928,5 @@ export default function App() {
       )}
     </div>
   );
+
 }
