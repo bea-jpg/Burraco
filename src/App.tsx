@@ -672,10 +672,12 @@ Vince ${winnerName} con ${maxPoints} punti!`);
     );
   }
 
-  // Elementi punteggio
+  // Elementi punteggio e attribuzione squadre
   const scoreResults = calculateRoundScores(gameState);
   const activePlayerName = getPlayerDisplayName(gameState, gameState.currentPlayerIdx, myPlayerIdx);
   const playerCount = gameState.config?.playerCount || 4;
+  const myTeamId = getPlayerTeamId(gameState, myPlayerIdx);
+  const oppTeamId = myTeamId === 0 ? 1 : 0;
 
   return (
     <div className="fixed inset-0 w-full h-[100dvh] flex flex-col bg-[#051108] text-slate-100 overflow-hidden font-sans select-none">
@@ -718,17 +720,17 @@ Vince ${winnerName} con ${maxPoints} punti!`);
           )}
         </div>
 
-        {/* Info Round & Punteggi */}
+        {/* Info Round & Punteggi Dinamici per Squadra */}
         <div className="flex items-center gap-2 sm:gap-4 text-xs">
           <span className="text-[10px] font-bold text-slate-400">
             RND {gameState.roundNumber}
           </span>
           <div className="flex items-center gap-2">
             <span className="text-emerald-400 font-extrabold text-[11px] bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-500/30">
-              S1: {gameState.teams[0]?.points || 0}
+              {playerCount === 2 ? 'Tu' : 'Noi'}: {gameState.teams[myTeamId]?.points || 0}
             </span>
             <span className="text-red-400 font-extrabold text-[11px] bg-red-950/80 px-2 py-0.5 rounded border border-red-500/30">
-              S2: {gameState.teams[1]?.points || 0}
+              {playerCount === 2 ? 'Avv' : 'Avv'}: {gameState.teams[oppTeamId]?.points || 0}
             </span>
           </div>
         </div>
@@ -741,13 +743,13 @@ Vince ${winnerName} con ${maxPoints} punti!`);
         ══════════════════════════════════════════════════════════════════ */
         <div className="flex-1 flex flex-row overflow-hidden relative">
           
-          {/* Colonna Sinistra: Squadra 1 */}
+          {/* Colonna Sinistra: La Mia Squadra / Tu */}
           <MeldColumn
-            title="SQUADRA 1 (Noi)"
-            teamId={0}
-            melds={gameState.teams[0]?.melds || []}
+            title={playerCount === 2 ? "TU (Le tue Calate)" : `SQUADRA ${myTeamId + 1} (La tua Squadra)`}
+            teamId={myTeamId}
+            melds={gameState.teams[myTeamId]?.melds || []}
             titleColorClass="text-emerald-400"
-            points={gameState.teams[0]?.points || 0}
+            points={gameState.teams[myTeamId]?.points || 0}
             lastUpdatedMeld={lastUpdatedMeld}
             onMeldClick={isMyTurn && gameState.turnPhase === 'play' ? handleAddToMeld : undefined}
             actionButton={
@@ -773,7 +775,6 @@ Vince ${winnerName} con ${maxPoints} punti!`);
                 const pName = getPlayerDisplayName(gameState, pIdx, myPlayerIdx);
                 const isCurrent = gameState.currentPlayerIdx === pIdx;
                 const teamId = getPlayerTeamId(gameState, pIdx);
-                const myTeamId = getPlayerTeamId(gameState, myPlayerIdx);
                 const isTeammate = teamId === myTeamId;
 
                 return (
@@ -805,8 +806,14 @@ Vince ${winnerName} con ${maxPoints} punti!`);
 
             {/* Mazzo + Scarti + Status Centrale */}
             <div className="flex-1 flex flex-col items-center justify-center gap-3 relative py-2">
-              <div className="px-4 py-1 bg-slate-950/90 border border-amber-500/30 rounded-full text-[9px] font-bold text-amber-300 shadow-lg animate-card-pop">
-                {gameState.history[gameState.history.length - 1]}
+              <div className={`px-4 py-1 rounded-full text-[9px] font-extrabold shadow-lg animate-card-pop border ${
+                isMyTurn
+                  ? "bg-emerald-950/90 border-emerald-400 text-emerald-300 animate-pulse"
+                  : "bg-slate-950/90 border-slate-700 text-slate-300"
+              }`}>
+                {isMyTurn
+                  ? (gameState.turnPhase === 'draw' ? "🟢 TOCCA A TE: Pesca dal mazzo o dagli scarti" : "🟢 TOCCA A TE: Gioca combinazioni o scarta")
+                  : `⏳ In attesa di ${activePlayerName} (${gameState.turnPhase === 'draw' ? 'sta pescando' : 'sta giocando'})`}
               </div>
 
               <div className="flex items-center gap-8 sm:gap-12">
@@ -818,7 +825,9 @@ Vince ${winnerName} con ${maxPoints} punti!`);
                       <div className="absolute top-[3px] left-[3px] w-14 h-20 bg-[#0c1a30] rounded-md border border-amber-500/15" />
                     </>
                   )}
-                  <div className="relative shadow-[1px_1px_0_#d4af37,_2px_2px_0_#d4af37,_3px_3px_8px_rgba(0,0,0,0.75)] rounded-md">
+                  <div data-testid="deck-card" className={`relative shadow-[1px_1px_0_#d4af37,_2px_2px_0_#d4af37,_3px_3px_8px_rgba(0,0,0,0.75)] rounded-md ${
+                    isMyTurn && gameState.turnPhase === 'draw' ? 'cursor-pointer ring-2 ring-emerald-400' : 'cursor-default opacity-85'
+                  }`}>
                     <CardView card={null} onClick={handleHumanDraw} size="normal" />
                   </div>
                   <div className="text-[8px] font-black text-slate-400 mt-1">
@@ -828,7 +837,10 @@ Vince ${winnerName} con ${maxPoints} punti!`);
 
                 {/* Scarti */}
                 <div
-                  className="relative flex items-center min-w-[65px] min-h-[85px] cursor-pointer"
+                  data-testid="discard-pile"
+                  className={`relative flex items-center min-w-[65px] min-h-[85px] ${
+                    isMyTurn ? 'cursor-pointer' : 'cursor-default'
+                  }`}
                   onClick={handleScartiClick}
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => {
@@ -869,12 +881,19 @@ Vince ${winnerName} con ${maxPoints} punti!`);
                   Ordina Valore
                 </button>
 
-                <span className={`text-[9px] uppercase px-3 py-1 rounded-full ${
+                <span className={`text-[9px] uppercase px-3.5 py-1 rounded-full flex items-center gap-1.5 ${
                   isMyTurn
-                    ? 'text-amber-300 font-black tracking-widest bg-amber-500/15 border border-amber-500/40 shadow-[0_0_12px_rgba(245,158,11,0.3)] animate-pulse'
-                    : 'text-slate-400 font-bold tracking-widest border border-transparent'
+                    ? 'text-white font-black tracking-wider bg-gradient-to-r from-emerald-600 to-teal-600 border border-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.5)] animate-pulse'
+                    : 'text-slate-400 font-bold tracking-wider bg-slate-900/90 border border-slate-800'
                 }`}>
-                  {isMyTurn ? '★ IL TUO TURNO ★' : `Turno di ${activePlayerName}`}
+                  {isMyTurn ? (
+                    gameState.turnPhase === 'draw' ? '🟢 È IL TUO TURNO — Pesca dal mazzo o scarti' : '★ IL TUO TURNO — Gioca o Scarta'
+                  ) : (
+                    <>
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+                      In attesa di {activePlayerName}...
+                    </>
+                  )}
                 </span>
 
                 <button onClick={() => sortHand('suit')}
@@ -927,13 +946,13 @@ Vince ${winnerName} con ${maxPoints} punti!`);
             </div>
           </div>
 
-          {/* Colonna Destra: Squadra 2 */}
+          {/* Colonna Destra: Squadra Avversaria */}
           <MeldColumn
-            title="SQUADRA 2 (Avv.)"
-            teamId={1}
-            melds={gameState.teams[1]?.melds || []}
+            title={playerCount === 2 ? "AVVERSARIO" : `SQUADRA ${oppTeamId + 1} (Avversari)`}
+            teamId={oppTeamId}
+            melds={gameState.teams[oppTeamId]?.melds || []}
             titleColorClass="text-red-400"
-            points={gameState.teams[1]?.points || 0}
+            points={gameState.teams[oppTeamId]?.points || 0}
             lastUpdatedMeld={lastUpdatedMeld}
           />
         </div>
@@ -950,7 +969,6 @@ Vince ${winnerName} con ${maxPoints} punti!`);
               const pName = getPlayerDisplayName(gameState, pIdx, myPlayerIdx);
               const isCurrent = gameState.currentPlayerIdx === pIdx;
               const teamId = getPlayerTeamId(gameState, pIdx);
-              const myTeamId = getPlayerTeamId(gameState, myPlayerIdx);
               const isTeammate = teamId === myTeamId;
 
               return (
@@ -972,14 +990,14 @@ Vince ${winnerName} con ${maxPoints} punti!`);
             })}
           </div>
 
-          {/* Calate Squadra 2 (Avversari) */}
+          {/* Calate Squadra Avversaria (In Alto) */}
           <div className="flex-1 min-h-[50px] max-h-[22vh] bg-[#030b06] border-b border-slate-900/60 flex flex-col overflow-hidden">
             <MeldRow
-              teamId={1}
-              melds={gameState.teams[1]?.melds || []}
+              teamId={oppTeamId}
+              melds={gameState.teams[oppTeamId]?.melds || []}
               titleColorClass="text-red-400"
-              teamLabel="👹 Avversari"
-              points={gameState.teams[1]?.points || 0}
+              teamLabel={playerCount === 2 ? "👹 Avversario" : "👹 Avversari"}
+              points={gameState.teams[oppTeamId]?.points || 0}
               lastUpdatedMeld={lastUpdatedMeld}
             />
           </div>
@@ -987,8 +1005,14 @@ Vince ${winnerName} con ${maxPoints} punti!`);
           {/* Zona Centrale: Mazzo + Scarti */}
           <div className="shrink-0 flex items-center justify-center gap-8 py-1.5 px-4 bg-[#071a0f] relative border-b border-slate-900/40">
             <div key={gameState.history.length}
-              className="absolute -top-2 left-1/2 -translate-x-1/2 z-10 px-3 py-0.5 bg-slate-950/90 border border-amber-500/25 rounded-full text-[8.5px] font-bold text-amber-400 whitespace-nowrap max-w-[65vw] truncate animate-card-pop shadow-md">
-              {gameState.history[gameState.history.length - 1]}
+              className={`absolute -top-2.5 left-1/2 -translate-x-1/2 z-10 px-3.5 py-0.5 rounded-full text-[8.5px] font-extrabold whitespace-nowrap max-w-[75vw] truncate animate-card-pop shadow-md border ${
+                isMyTurn
+                  ? "bg-emerald-950/90 border-emerald-400 text-emerald-300 animate-pulse"
+                  : "bg-slate-950/90 border-slate-700 text-slate-300"
+              }`}>
+              {isMyTurn
+                ? (gameState.turnPhase === 'draw' ? "🟢 TOCCA A TE: Pesca dal mazzo o dagli scarti" : "🟢 TOCCA A TE: Gioca combinazioni o scarta")
+                : `⏳ In attesa di ${activePlayerName} (${gameState.turnPhase === 'draw' ? 'sta pescando' : 'sta giocando'})`}
             </div>
 
             {/* Mazzo */}
@@ -999,7 +1023,9 @@ Vince ${winnerName} con ${maxPoints} punti!`);
                   <div className="absolute top-[3px] left-[3px] w-14 h-20 bg-[#0c1a30] rounded-md border border-amber-500/15" />
                 </>
               )}
-              <div data-testid="deck-card" className="relative shadow-[1px_1px_0_#d4af37,_2px_2px_0_#d4af37,_3px_3px_8px_rgba(0,0,0,0.75)] rounded-md cursor-pointer">
+              <div data-testid="deck-card" className={`relative shadow-[1px_1px_0_#d4af37,_2px_2px_0_#d4af37,_3px_3px_8px_rgba(0,0,0,0.75)] rounded-md ${
+                isMyTurn && gameState.turnPhase === 'draw' ? 'cursor-pointer ring-2 ring-emerald-400' : 'cursor-default opacity-85'
+              }`}>
                 <CardView card={null} onClick={handleHumanDraw} size="normal" />
               </div>
               <div className="text-center text-[8px] font-black text-slate-400 mt-0.5 whitespace-nowrap">
@@ -1008,7 +1034,9 @@ Vince ${winnerName} con ${maxPoints} punti!`);
             </div>
 
             {/* Scarti */}
-            <div data-testid="discard-pile" className="relative flex items-center cursor-pointer mt-1.5" style={{ minWidth: '60px', minHeight: '82px' }}
+            <div data-testid="discard-pile" className={`relative flex items-center mt-1.5 ${
+              isMyTurn ? 'cursor-pointer' : 'cursor-default'
+            }`} style={{ minWidth: '60px', minHeight: '82px' }}
               onClick={handleScartiClick}
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => {
@@ -1039,14 +1067,14 @@ Vince ${winnerName} con ${maxPoints} punti!`);
             </div>
           </div>
 
-          {/* Calate Squadra 1 (Noi) */}
+          {/* Calate La Mia Squadra / Tu (In Basso) */}
           <div className="flex-1 min-h-[50px] max-h-[22vh] bg-[#040f08]/90 border-b border-slate-900/60 flex flex-col overflow-hidden">
             <MeldRow
-              teamId={0}
-              melds={gameState.teams[0]?.melds || []}
+              teamId={myTeamId}
+              melds={gameState.teams[myTeamId]?.melds || []}
               titleColorClass="text-emerald-400"
-              teamLabel="👥 Noi"
-              points={gameState.teams[0]?.points || 0}
+              teamLabel={playerCount === 2 ? "👤 Tu" : "👥 La tua Squadra"}
+              points={gameState.teams[myTeamId]?.points || 0}
               onMeldClick={isMyTurn && gameState.turnPhase === 'play' ? handleAddToMeld : undefined}
               lastUpdatedMeld={lastUpdatedMeld}
               actionButton={
@@ -1095,8 +1123,8 @@ Vince ${winnerName} con ${maxPoints} punti!`);
               {/* Azione contestuale centrale */}
               {isMyTurn && gameMode === 'game' ? (
                 gameState.turnPhase === 'draw' ? (
-                  <span className="text-[8.5px] uppercase whitespace-nowrap px-3 py-1 rounded-full font-black bg-amber-500/15 border border-amber-500/40 text-amber-300 tracking-wider animate-pulse">
-                    👉 Pesca dal mazzo o scarti
+                  <span className="text-[8.5px] uppercase whitespace-nowrap px-3.5 py-1 rounded-full font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 border border-emerald-300 text-white tracking-wider shadow-[0_0_12px_rgba(16,185,129,0.5)] animate-pulse">
+                    👉 È IL TUO TURNO — Pesca
                   </span>
                 ) : selectedCardIds.size >= 3 ? (
                   <button
@@ -1134,13 +1162,14 @@ Vince ${winnerName} con ${maxPoints} punti!`);
                     </button>
                   </div>
                 ) : (
-                  <span className="text-[9px] uppercase whitespace-nowrap px-3 py-1 rounded-full font-black bg-amber-500/15 border border-amber-500/40 text-amber-300 tracking-[0.15em] shadow-[0_0_12px_rgba(245,158,11,0.3)] animate-pulse">
-                    ★ IL TUO TURNO ★
+                  <span className="text-[8.5px] uppercase whitespace-nowrap px-3.5 py-1 rounded-full font-black bg-amber-500/20 border border-amber-400 text-amber-300 tracking-[0.15em] shadow-[0_0_12px_rgba(245,158,11,0.3)] animate-pulse">
+                    ★ IL TUO TURNO — Gioca o Scarta
                   </span>
                 )
               ) : (
-                <span className="text-[8.5px] uppercase whitespace-nowrap px-3 py-1 rounded-full font-bold text-slate-500 border border-transparent tracking-wider">
-                  Turno di {activePlayerName}
+                <span className="text-[8.5px] uppercase whitespace-nowrap px-3 py-1 rounded-full font-bold bg-slate-900/90 border border-slate-700/60 text-slate-400 tracking-wider flex items-center gap-1.5 shadow-inner">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping inline-block" />
+                  In attesa di {activePlayerName}...
                 </span>
               )}
 

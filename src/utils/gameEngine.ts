@@ -165,8 +165,15 @@ export function createInitialState(configOrRound?: GameConfig | number, legacyPo
     turnPhase: 'draw',
     roundOver: false,
     roundNumber: config.roundNumber || 1,
-    history: ["Partita iniziata! Pesca dal mazzo o raccogli gli scarti."]
+    history: [`Partita iniziata! Turno iniziale di ${config.playerNames?.[0] || "Giocatore 1"}.`]
   };
+}
+
+export function getEnginePlayerName(state: GameState, playerIdx: number): string {
+  if (state.config?.playerNames && state.config.playerNames[playerIdx]) {
+    return state.config.playerNames[playerIdx];
+  }
+  return playerIdx === 0 ? "Giocatore 1" : `Giocatore ${playerIdx + 1}`;
 }
 
 export function getPlayerTeamId(stateOrPlayerIdx: GameState | number, playerIdxParam?: number): number {
@@ -206,7 +213,7 @@ export function drawFromDeck(state: GameState, playerIdx: number): GameState {
   newState.hands[playerIdx].push(card);
   newState.turnPhase = 'play';
   
-  const pName = playerIdx === 0 ? "Tu" : `Bot ${playerIdx + 1}`;
+  const pName = getEnginePlayerName(state, playerIdx);
   newState.history.push(`${pName} ha pescato dal mazzo.`);
   
   return newState;
@@ -226,7 +233,7 @@ export function takeDiscardPile(state: GameState, playerIdx: number): GameState 
   newState.hands[playerIdx].push(...taken);
   newState.turnPhase = 'play';
   
-  const pName = playerIdx === 0 ? "Tu" : `Bot ${playerIdx + 1}`;
+  const pName = getEnginePlayerName(state, playerIdx);
   newState.history.push(`${pName} ha raccolto gli scarti (${taken.length} carte).`);
   
   return newState;
@@ -284,7 +291,7 @@ export function meldNewCombination(
   };
   newState.teams[teamId].melds.push(newMeld);
   
-  const pName = playerIdx === 0 ? "Tu" : `Bot ${playerIdx + 1}`;
+  const pName = getEnginePlayerName(state, playerIdx);
   newState.history.push(`${pName} ha calato una nuova combinazione: ${cardsToMeld.map(c => c.rank + (c.suit || '')).join(' ')}`);
   
   // Gestione pozzetto al volo
@@ -343,7 +350,7 @@ export function addToExistingMeld(
     cards: validation.ordered
   };
   
-  const pName = playerIdx === 0 ? "Tu" : `Bot ${playerIdx + 1}`;
+  const pName = getEnginePlayerName(state, playerIdx);
   newState.history.push(`${pName} ha aggiunto ${cardsToAdd.map(c => c.rank + (c.suit || '')).join(' ')} ad una calata esistente.`);
   
   // Gestione pozzetto al volo
@@ -380,7 +387,7 @@ export function discardCard(
       newState.hands[playerIdx] = [];
       newState.history = [...state.history];
       
-      const pName = playerIdx === 0 ? "Tu" : `Bot ${playerIdx + 1}`;
+      const pName = getEnginePlayerName(state, playerIdx);
       newState.history.push(`${pName} scarta ${cardToDiscard.rank}${cardToDiscard.suit || ''} per prendere il pozzetto.`);
       
       const stateWithPozzetto = checkAndTakePozzetto(newState, playerIdx);
@@ -414,7 +421,7 @@ export function discardCard(
       newState.roundOver = true;
       newState.history = [...state.history];
       
-      const pName = playerIdx === 0 ? "Tu" : `Bot ${playerIdx + 1}`;
+      const pName = getEnginePlayerName(state, playerIdx);
       newState.history.push(`${pName} ha CHIUSO il round scartando ${cardToDiscard.rank}${cardToDiscard.suit || ''}!`);
       
       return {
@@ -432,7 +439,7 @@ export function discardCard(
   newState.hands[playerIdx] = newState.hands[playerIdx].filter(c => c.id !== cardToDiscard.id);
   newState.history = [...state.history];
   
-  const pName = playerIdx === 0 ? "Tu" : `Bot ${playerIdx + 1}`;
+  const pName = getEnginePlayerName(state, playerIdx);
   newState.history.push(`${pName} ha scartato ${cardToDiscard.rank}${cardToDiscard.suit || ''}.`);
   
   return {
@@ -458,7 +465,7 @@ function checkAndTakePozzetto(state: GameState, playerIdx: number): GameState {
     const pozzetto = newState.pozzetti.shift();
     if (pozzetto) {
       newState.hands[playerIdx] = pozzetto;
-      const pName = playerIdx === 0 ? "Tu" : `Bot ${playerIdx + 1}`;
+      const pName = getEnginePlayerName(state, playerIdx);
       newState.history.push(`★ ${pName} ha preso il pozzetto! ★`);
     }
     return newState;
