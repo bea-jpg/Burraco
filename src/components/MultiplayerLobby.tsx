@@ -29,6 +29,30 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
   const [roomPlayers, setRoomPlayers] = useState<NetworkPlayer[]>(service.players);
   const [currentConfig, setCurrentConfig] = useState<GameConfig | null>(service.config);
 
+  // Sottoscrizione eventi Lobby
+  React.useEffect(() => {
+    const unsubRoom = service.on("roomUpdated", (players, cfg) => {
+      setRoomPlayers([...players]);
+      if (cfg) setCurrentConfig(cfg);
+      setErrorMessage(null);
+    });
+
+    const unsubChat = service.on("chatMessage", (msg) => {
+      setChatMessages(prev => [...prev.slice(-15), msg]);
+    });
+
+    const unsubError = service.on("error", (err) => {
+      setErrorMessage(err);
+      setIsLoading(false);
+    });
+
+    return () => {
+      unsubRoom();
+      unsubChat();
+      unsubError();
+    };
+  }, [service]);
+
   // Regole sintetiche per numero di giocatori
   const ruleDescriptions: Record<number, { title: string; desc: string; decks: string; pozzetti: string }> = {
     2: {
@@ -81,20 +105,7 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
 
     try {
       const generatedCode = MultiplayerService.generateRoomCode();
-      await service.createRoom(generatedCode, playerName, selectedPlayerCount, {
-        onRoomUpdated: (players, cfg) => {
-          setRoomPlayers([...players]);
-          if (cfg) setCurrentConfig(cfg);
-          setErrorMessage(null);
-        },
-        onChatMessage: (msg) => {
-          setChatMessages(prev => [...prev.slice(-15), msg]);
-        },
-        onError: (err) => {
-          setErrorMessage(err);
-          setIsLoading(false);
-        }
-      });
+      await service.createRoom(generatedCode, playerName, selectedPlayerCount);
       setRoomPlayers([...service.players]);
       setCurrentConfig(service.config);
       setIsLoading(false);
@@ -119,23 +130,7 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
     saveName(playerName);
 
     try {
-      await service.joinRoom(roomCodeInput.trim().toUpperCase(), playerName, {
-        onRoomUpdated: (players, cfg) => {
-          setRoomPlayers([...players]);
-          if (cfg) setCurrentConfig(cfg);
-          setErrorMessage(null);
-        },
-        onChatMessage: (msg) => {
-          setChatMessages(prev => [...prev.slice(-15), msg]);
-        },
-        onGameStarted: () => {
-          onStartGame();
-        },
-        onError: (err) => {
-          setErrorMessage(err);
-          setIsLoading(false);
-        }
-      });
+      await service.joinRoom(roomCodeInput.trim().toUpperCase(), playerName);
       setRoomPlayers([...service.players]);
       setCurrentConfig(service.config);
       setIsLoading(false);

@@ -52,22 +52,23 @@ export type NetworkMessage =
   | { type: 'EMOJI'; reaction: EmojiReaction }
   | { type: 'ERROR'; message: string };
 
-export interface MultiplayerEvents {
-  onConnected?: (myPeerId: string) => void;
-  onRoomUpdated?: (players: NetworkPlayer[], config: GameConfig) => void;
-  onGameStarted?: (state: GameState, myPlayerIdx: number) => void;
-  onStateSynced?: (state: GameState) => void;
-  onActionReceived?: (action: NetworkAction) => void;
-  onChatMessage?: (message: ChatMessage) => void;
-  onEmojiReaction?: (reaction: EmojiReaction) => void;
-  onError?: (err: string) => void;
-  onDisconnected?: () => void;
+export interface MultiplayerEventMap {
+  connected: (myPeerId: string) => void;
+  roomUpdated: (players: NetworkPlayer[], config: GameConfig) => void;
+  gameStarted: (state: GameState, myPlayerIdx: number) => void;
+  stateSynced: (state: GameState) => void;
+  actionReceived: (action: NetworkAction) => void;
+  chatMessage: (message: ChatMessage) => void;
+  emojiReaction: (reaction: EmojiReaction) => void;
+  error: (err: string) => void;
+  disconnected: () => void;
 }
 
 export class MultiplayerService {
   private peer: Peer | null = null;
   private connections: Map<string, DataConnection> = new Map();
   private hostConnection: DataConnection | null = null;
+  private listeners: Map<keyof MultiplayerEventMap, Set<any>> = new Map();
   
   public isHost = false;
   public roomCode = "";
@@ -75,10 +76,32 @@ export class MultiplayerService {
   public myName = "";
   public players: NetworkPlayer[] = [];
   public config: GameConfig | null = null;
-  public events: MultiplayerEvents = {};
 
   // Prefisso per isolare le stanze Burraco Pro su PeerServer
   private static PEER_PREFIX = "burraco-pro-room-";
+
+  public on<K extends keyof MultiplayerEventMap>(event: K, handler: MultiplayerEventMap[K]): () => void {
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, new Set());
+    }
+    this.listeners.get(event)!.add(handler);
+    return () => {
+      this.listeners.get(event)?.delete(handler);
+    };
+  }
+
+  public emit<K extends keyof MultiplayerEventMap>(event: K, ...args: Parameters<MultiplayerEventMap[K]>): void {
+    const handlers = this.listeners.get(event);
+    if (handlers) {
+      for (const handler of Array.from(handlers)) {
+        try {
+          handler(...args);
+        } catch (e) {
+          console.error(`Error in event listener for ${event}:`, e);
+        }
+      }
+    }
+  }
 
   public static generateRoomCode(): string {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -93,13 +116,11 @@ export class MultiplayerService {
   public async createRoom(
     roomCode: string,
     hostName: string,
-    playerCount: number,
-    events: MultiplayerEvents
+    playerCount: number
   ): Promise<string> {
     this.isHost = true;
     this.roomCode = roomCode.toUpperCase().trim();
     this.myName = hostName.trim() || "Host";
-    this.events = events;
     this.myPlayerIdx = 0;
 
     this.config = {
@@ -129,8 +150,8 @@ export class MultiplayerService {
             isBot: false
           }
         ];
-        this.events.onConnected?.(id);
-        this.events.onRoomUpdated?.(this.players, this.config!);
+        this.emit("connected", id);
+        this.emit("roomUpdated", this.players, this.config!);
         resolve(this.roomCode);
       });
 
@@ -143,7 +164,7 @@ export class MultiplayerService {
         if (err.type === "unavailable-id") {
           reject(new Error("Codice stanza già occupato. Riprova con un altro codice."));
         } else {
-          this.events.onError?.(err.message);
+          this.emit("error", err.message);
           reject(err);
         }
       });
@@ -174,7 +195,7 @@ export class MultiplayerService {
           config: this.config!,
           players: this.players
         });
-        this.events.onRoomUpdated?.(this.players, this.config!);
+        this.emit("roomUpdated", this.players, this.config!);
       }
     });
   }
@@ -217,25 +238,25 @@ export class MultiplayerService {
           players: this.players
         });
 
-        this.events.onRoomUpdated?.(this.players, this.config);
+        this.emit("roomUpdated", this.players, this.config);
         break;
       }
 
       case "PLAYER_ACTION": {
-        // L'host riceve l'azione del client, la notifica localmente e la inoltra
-        this.events.onActionReceived?.(msg.action);
+        // L'host riceve l'azione del client, la notifica localmente
+        this.emit("actionReceived", msg.action);
         break;
       }
 
       case "CHAT": {
         this.broadcast(msg);
-        this.events.onChatMessage?.(msg.message);
+        this.emit("chatMessage", msg.message);
         break;
       }
 
       case "EMOJI": {
         this.broadcast(msg);
-        this.events.onEmojiReaction?.(msg.reaction);
+        this.emit("emojiReaction", msg.reaction);
         break;
       }
     }
@@ -244,13 +265,11 @@ export class MultiplayerService {
   // --- 2. UNISCITI A STANZA (GUEST) ---
   public async joinRoom(
     roomCode: string,
-    playerName: string,
-    events: MultiplayerEvents
+    playerName: string
   ): Promise<void> {
     this.isHost = false;
     this.roomCode = roomCode.toUpperCase().trim();
     this.myName = playerName.trim() || "Ospite";
-    this.events = events;
 
     const hostPeerId = `${MultiplayerService.PEER_PREFIX}${this.roomCode}`;
 
@@ -281,12 +300,12 @@ export class MultiplayerService {
 
         conn.on("error", (err) => {
           console.error("Guest Connection Error:", err);
-          this.events.onError?.("Impossibile connettersi alla stanza.");
+          this.emit("error", "Impossibile connettersi alla stanza.");
           reject(err);
         });
 
         conn.on("close", () => {
-          this.events.onDisconnected?.();
+          this.emit("disconnected");
         });
       });
 
@@ -295,7 +314,7 @@ export class MultiplayerService {
         if (err.type === "peer-unavailable") {
           reject(new Error("Stanza non trovata. Verifica il codice e assicurati che l'Host sia online."));
         } else {
-          this.events.onError?.(err.message);
+          this.emit("error", err.message);
           reject(err);
         }
       });
@@ -308,40 +327,40 @@ export class MultiplayerService {
         this.myPlayerIdx = msg.playerIdx;
         this.config = msg.config;
         this.players = msg.players;
-        this.events.onRoomUpdated?.(this.players, this.config);
+        this.emit("roomUpdated", this.players, this.config);
         break;
       }
 
       case "ROOM_UPDATE": {
         this.config = msg.config;
         this.players = msg.players;
-        this.events.onRoomUpdated?.(this.players, this.config);
+        this.emit("roomUpdated", this.players, this.config);
         break;
       }
 
       case "GAME_START": {
         this.config = msg.config;
-        this.events.onGameStarted?.(msg.state, this.myPlayerIdx);
+        this.emit("gameStarted", msg.state, this.myPlayerIdx);
         break;
       }
 
       case "STATE_SYNC": {
-        this.events.onStateSynced?.(msg.state);
+        this.emit("stateSynced", msg.state);
         break;
       }
 
       case "CHAT": {
-        this.events.onChatMessage?.(msg.message);
+        this.emit("chatMessage", msg.message);
         break;
       }
 
       case "EMOJI": {
-        this.events.onEmojiReaction?.(msg.reaction);
+        this.emit("emojiReaction", msg.reaction);
         break;
       }
 
       case "ERROR": {
-        this.events.onError?.(msg.message);
+        this.emit("error", msg.message);
         break;
       }
     }
@@ -370,7 +389,7 @@ export class MultiplayerService {
       config: this.config,
       players: this.players
     });
-    this.events.onRoomUpdated?.(this.players, this.config);
+    this.emit("roomUpdated", this.players, this.config);
   }
 
   // L'Host avvia la partita
@@ -381,7 +400,7 @@ export class MultiplayerService {
       state: initialState,
       config: this.config
     });
-    this.events.onGameStarted?.(initialState, 0);
+    this.emit("gameStarted", initialState, 0);
   }
 
   // L'Host sincronizza lo stato aggiornato a tutti i client
@@ -396,7 +415,7 @@ export class MultiplayerService {
   // Un giocatore invia un'azione (pesca, cala, scarta)
   public sendAction(action: NetworkAction): void {
     if (this.isHost) {
-      this.events.onActionReceived?.(action);
+      this.emit("actionReceived", action);
     } else if (this.hostConnection) {
       this.hostConnection.send({
         type: "PLAYER_ACTION",
@@ -417,7 +436,7 @@ export class MultiplayerService {
 
     if (this.isHost) {
       this.broadcast({ type: "CHAT", message });
-      this.events.onChatMessage?.(message);
+      this.emit("chatMessage", message);
     } else if (this.hostConnection) {
       this.hostConnection.send({ type: "CHAT", message });
     }
@@ -432,7 +451,7 @@ export class MultiplayerService {
 
     if (this.isHost) {
       this.broadcast({ type: "EMOJI", reaction });
-      this.events.onEmojiReaction?.(reaction);
+      this.emit("emojiReaction", reaction);
     } else if (this.hostConnection) {
       this.hostConnection.send({ type: "EMOJI", reaction });
     }

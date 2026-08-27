@@ -70,19 +70,19 @@ export default function App() {
   useEffect(() => {
     const service = multiplayerServiceRef.current;
 
-    service.events.onStateSynced = (newState) => {
+    const unsubState = service.on("stateSynced", (newState) => {
       setGameState(newState);
       setSelectedCardIds(new Set());
-    };
+    });
 
-    service.events.onGameStarted = (initialState, playerIdx) => {
+    const unsubGame = service.on("gameStarted", (initialState, playerIdx) => {
       setGameState(initialState);
       setMyPlayerIdx(playerIdx);
       setIsMultiplayer(true);
-      setGameMode('game');
-    };
+      setGameMode("game");
+    });
 
-    service.events.onActionReceived = (action) => {
+    const unsubAction = service.on("actionReceived", (action) => {
       if (!service.isHost) return;
 
       setGameState(prev => {
@@ -106,6 +106,12 @@ export default function App() {
         service.syncState(updatedState);
         return updatedState;
       });
+    });
+
+    return () => {
+      unsubState();
+      unsubGame();
+      unsubAction();
     };
   }, []);
 
@@ -519,16 +525,14 @@ export default function App() {
     }
   };
 
-  const handleTouchEndCard = (e: React.TouchEvent, cardId: string) => {
-    e.preventDefault();
+  const handleTouchEndCard = (e: React.TouchEvent) => {
     if (!touchStateRef.current) return;
     const { hasMoved } = touchStateRef.current;
     touchStateRef.current = null;
 
     if (hasMoved && draggedIdx !== null && dragOverIdx !== null && draggedIdx !== dragOverIdx) {
+      e.preventDefault();
       moveCardInHand(draggedIdx, dragOverIdx);
-    } else if (!hasMoved) {
-      toggleCardSelect(cardId);
     }
     setDraggedIdx(null);
     setDragOverIdx(null);
@@ -900,7 +904,7 @@ Vince ${winnerName} con ${maxPoints} punti!`);
                           onDragEnd={() => { setDraggedIdx(null); setDragOverIdx(null); }}
                           onTouchStart={(e) => handleTouchStartCard(e, idx)}
                           onTouchMove={(e) => handleTouchMoveCard(e, spacing)}
-                          onTouchEnd={(e) => handleTouchEndCard(e, card.id)}
+                          onTouchEnd={(e) => handleTouchEndCard(e)}
                           data-testid="hand-card" data-card-id={card.id}
                           className={`absolute w-14 h-20 transition-all duration-200 ease-out cursor-grab select-none
                             ${isDraggingThis ? 'opacity-20 scale-95 z-0' : 'opacity-100'}
@@ -995,7 +999,7 @@ Vince ${winnerName} con ${maxPoints} punti!`);
                   <div className="absolute top-[3px] left-[3px] w-14 h-20 bg-[#0c1a30] rounded-md border border-amber-500/15" />
                 </>
               )}
-              <div className="relative shadow-[1px_1px_0_#d4af37,_2px_2px_0_#d4af37,_3px_3px_8px_rgba(0,0,0,0.75)] rounded-md">
+              <div data-testid="deck-card" className="relative shadow-[1px_1px_0_#d4af37,_2px_2px_0_#d4af37,_3px_3px_8px_rgba(0,0,0,0.75)] rounded-md cursor-pointer">
                 <CardView card={null} onClick={handleHumanDraw} size="normal" />
               </div>
               <div className="text-center text-[8px] font-black text-slate-400 mt-0.5 whitespace-nowrap">
@@ -1004,7 +1008,7 @@ Vince ${winnerName} con ${maxPoints} punti!`);
             </div>
 
             {/* Scarti */}
-            <div className="relative flex items-center cursor-pointer mt-1.5" style={{ minWidth: '60px', minHeight: '82px' }}
+            <div data-testid="discard-pile" className="relative flex items-center cursor-pointer mt-1.5" style={{ minWidth: '60px', minHeight: '82px' }}
               onClick={handleScartiClick}
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => {
@@ -1111,6 +1115,7 @@ Vince ${winnerName} con ${maxPoints} punti!`);
                       ◀
                     </button>
                     <button
+                      data-testid="discard-button"
                       onClick={() => {
                         const selectedCardId = Array.from(selectedCardIds)[0];
                         const card = gameState.hands[myPlayerIdx]?.find(c => c.id === selectedCardId);
@@ -1176,7 +1181,7 @@ Vince ${winnerName} con ${maxPoints} punti!`);
                           onClick={() => toggleCardSelect(card.id)}
                           onTouchStart={(e) => handleTouchStartCard(e, idx)}
                           onTouchMove={(e) => handleTouchMoveCard(e, spacing)}
-                          onTouchEnd={(e) => handleTouchEndCard(e, card.id)}
+                          onTouchEnd={(e) => handleTouchEndCard(e)}
                         >
                           <CardView card={card} />
                         </div>
