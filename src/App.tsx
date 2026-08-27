@@ -255,7 +255,90 @@ export default function App() {
     setSelectedCardIds(new Set());
   };
 
-  // Reorder mano tramite drag and drop in tempo reale
+  // Sposta una carta all'interno della mano
+  const moveCardInHand = (srcIdx: number, destIdx: number) => {
+    if (srcIdx === destIdx) return;
+    setGameState(prev => {
+      const nextHand = [...prev.hands[0]];
+      if (srcIdx < 0 || srcIdx >= nextHand.length || destIdx < 0 || destIdx >= nextHand.length) return prev;
+      
+      const [card] = nextHand.splice(srcIdx, 1);
+      nextHand.splice(destIdx, 0, card);
+      
+      const nextHands = [...prev.hands];
+      nextHands[0] = nextHand;
+      return {
+        ...prev,
+        hands: nextHands
+      };
+    });
+  };
+
+  // Sposta la singola carta selezionata a sinistra (-1) o a destra (+1)
+  const moveSelectedCard = (direction: -1 | 1) => {
+    if (selectedCardIds.size !== 1) return;
+    const cardId = Array.from(selectedCardIds)[0];
+    const hand = gameState.hands[0];
+    const currIdx = hand.findIndex(c => c.id === cardId);
+    if (currIdx === -1) return;
+    const newIdx = currIdx + direction;
+    if (newIdx >= 0 && newIdx < hand.length) {
+      moveCardInHand(currIdx, newIdx);
+    }
+  };
+
+  // Touch drag and drop reordering per dispositivi mobile
+  const touchStateRef = useRef<{
+    startX: number;
+    startY: number;
+    srcIdx: number;
+    hasMoved: boolean;
+  } | null>(null);
+
+  const handleTouchStartCard = (e: React.TouchEvent, idx: number) => {
+    if (gameMode !== 'game') return;
+    const touch = e.touches[0];
+    touchStateRef.current = {
+      startX: touch.clientX,
+      startY: touch.clientY,
+      srcIdx: idx,
+      hasMoved: false,
+    };
+  };
+
+  const handleTouchMoveCard = (e: React.TouchEvent, spacing: number) => {
+    if (!touchStateRef.current) return;
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - touchStateRef.current.startX;
+    const deltaY = touch.clientY - touchStateRef.current.startY;
+
+    if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10 || touchStateRef.current.hasMoved) {
+      touchStateRef.current.hasMoved = true;
+      const hand = gameState.hands[0];
+      const offsetIndices = Math.round(deltaX / spacing);
+      const targetIdx = Math.max(0, Math.min(hand.length - 1, touchStateRef.current.srcIdx + offsetIndices));
+      
+      setDraggedIdx(touchStateRef.current.srcIdx);
+      setDragOverIdx(targetIdx);
+    }
+  };
+
+  const handleTouchEndCard = (e: React.TouchEvent, cardId: string) => {
+    e.preventDefault();
+    if (!touchStateRef.current) return;
+    const { hasMoved } = touchStateRef.current;
+    touchStateRef.current = null;
+
+    if (hasMoved && draggedIdx !== null && dragOverIdx !== null && draggedIdx !== dragOverIdx) {
+      moveCardInHand(draggedIdx, dragOverIdx);
+    } else if (!hasMoved) {
+      toggleCardSelect(cardId);
+    }
+    setDraggedIdx(null);
+    setDragOverIdx(null);
+  };
+
+  // Reorder mano tramite drag and drop in tempo reale (Desktop)
   const handleDragStart = (e: React.DragEvent, idx: number) => {
     e.dataTransfer.setData("text/plain", idx.toString());
     
@@ -308,21 +391,7 @@ export default function App() {
     const srcIdx = Number(srcStr);
     if (isNaN(srcIdx) || srcIdx === destIdx) return;
     
-    setGameState(prev => {
-      const nextHand = [...prev.hands[0]];
-      if (srcIdx < 0 || srcIdx >= nextHand.length || destIdx < 0 || destIdx >= nextHand.length) return prev;
-      
-      // Sposta la carta nell'array una sola volta al rilascio
-      const [card] = nextHand.splice(srcIdx, 1);
-      nextHand.splice(destIdx, 0, card);
-      
-      const nextHands = [...prev.hands];
-      nextHands[0] = nextHand;
-      return {
-        ...prev,
-        hands: nextHands
-      };
-    });
+    moveCardInHand(srcIdx, destIdx);
     setSelectedCardIds(new Set());
   };
 
@@ -571,6 +640,9 @@ export default function App() {
                           onDragLeave={() => { if (dragOverIdx === idx) setDragOverIdx(null); }}
                           onDrop={(e) => handleDrop(e, idx)}
                           onDragEnd={() => { setDraggedIdx(null); setDragOverIdx(null); }}
+                          onTouchStart={(e) => handleTouchStartCard(e, idx)}
+                          onTouchMove={(e) => handleTouchMoveCard(e, spacing)}
+                          onTouchEnd={(e) => handleTouchEndCard(e, card.id)}
                           data-testid="hand-card" data-card-id={card.id}
                           className={`absolute w-14 h-20 transition-all duration-300 ease-out cursor-grab active:cursor-grabbing select-none
                             ${isDraggingThis ? 'opacity-20 scale-95 z-0' : 'opacity-100'}
@@ -582,10 +654,6 @@ export default function App() {
                             zIndex: isHoveredTarget ? 30 : idx + 10,
                           }}
                           onClick={() => toggleCardSelect(card.id)}
-                          onTouchEnd={(e) => {
-                            e.preventDefault();
-                            toggleCardSelect(card.id);
-                          }}
                         >
                           <CardView card={card} />
                         </div>
@@ -680,11 +748,11 @@ export default function App() {
           />
         </div>
 
-        {/* ── ZONA CENTRALE: Mazzo + Scarti + Status (Compatta) ─────────── */}
-        <div className="shrink-0 flex items-center justify-center gap-8 py-1.5 px-4 bg-[#071a0f] relative border-b border-slate-900/40">
+        {/* ── ZONA CENTRALE: Mazzo + Scarti + Status (Grandezza Standard) ─── */}
+        <div className="shrink-0 flex items-center justify-center gap-8 py-2 px-4 bg-[#071a0f] relative border-b border-slate-900/40">
           {/* Status pill */}
           <div key={gameState.history.length}
-            className="absolute -top-2 left-1/2 -translate-x-1/2 z-10 px-3 py-0.5 bg-slate-950/90 border border-[#d4af37]/25 rounded-full text-[8px] font-bold text-[#d4af37] whitespace-nowrap max-w-[60vw] truncate animate-card-pop shadow-md">
+            className="absolute -top-2 left-1/2 -translate-x-1/2 z-10 px-3 py-0.5 bg-slate-950/90 border border-[#d4af37]/25 rounded-full text-[8.5px] font-bold text-[#d4af37] whitespace-nowrap max-w-[65vw] truncate animate-card-pop shadow-md">
             {gameState.history[gameState.history.length - 1]}
           </div>
 
@@ -692,18 +760,18 @@ export default function App() {
           <div className="relative group mt-2 flex flex-col items-center">
             {gameState.deck.length > 3 && (
               <>
-                <div className="absolute top-[1px] left-[1px] w-9 h-13 bg-[#0c1a30] rounded border border-[#d4af37]/10" />
-                <div className="absolute top-[2px] left-[2px] w-9 h-13 bg-[#0c1a30] rounded border border-[#d4af37]/15" />
+                <div className="absolute top-[1.5px] left-[1.5px] w-14 h-20 bg-[#0c1a30] rounded-md border border-[#d4af37]/10" />
+                <div className="absolute top-[3px] left-[3px] w-14 h-20 bg-[#0c1a30] rounded-md border border-[#d4af37]/15" />
               </>
             )}
-            <div className="relative shadow-[1px_1px_0_#d4af37,_2px_2px_0_#d4af37,_3px_3px_8px_rgba(0,0,0,0.75)] rounded">
-              <CardView card={null} onClick={handleHumanDraw} size="mini" />
+            <div className="relative shadow-[1px_1px_0_#d4af37,_2px_2px_0_#d4af37,_3px_3px_8px_rgba(0,0,0,0.75)] rounded-md">
+              <CardView card={null} onClick={handleHumanDraw} size="normal" />
             </div>
-            <div className="text-center text-[7px] font-black text-slate-400 mt-0.5 whitespace-nowrap">{gameState.deck.length} carte</div>
+            <div className="text-center text-[8px] font-black text-slate-400 mt-1 whitespace-nowrap">{gameState.deck.length} carte</div>
           </div>
 
           {/* Scarti */}
-          <div className="relative flex items-center cursor-pointer mt-2" style={{ minWidth: '45px', minHeight: '52px' }}
+          <div className="relative flex items-center cursor-pointer mt-2" style={{ minWidth: '60px', minHeight: '82px' }}
             onClick={handleScartiClick}
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
@@ -713,7 +781,7 @@ export default function App() {
               }
             }}>
             {gameState.discardPile.length === 0 ? (
-              <div className="w-9 h-13 rounded border border-dashed border-[#d4af37]/20 flex items-center justify-center text-[6px] text-[#d4af37]/40 font-black">
+              <div className="w-14 h-20 rounded-md border border-dashed border-[#d4af37]/20 flex items-center justify-center text-[7.5px] text-[#d4af37]/40 font-black tracking-widest">
                 SCARTI
               </div>
             ) : (
@@ -721,13 +789,13 @@ export default function App() {
                 const angle = (idx - (arr.length - 1) / 2) * 5;
                 return (
                   <div key={card.id} className="absolute transition-transform duration-200"
-                    style={{ left: `${idx * 8}px`, zIndex: idx, transform: `rotate(${angle}deg)` }}>
-                    <CardView card={card} size="mini" />
+                    style={{ left: `${idx * 12}px`, zIndex: idx, transform: `rotate(${angle}deg)` }}>
+                    <CardView card={card} size="normal" />
                   </div>
                 );
               })
             )}
-            <div className="text-center text-[7px] font-black text-slate-400 absolute -bottom-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap">
+            <div className="text-center text-[8px] font-black text-slate-400 absolute -bottom-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
               {gameState.discardPile.length > 0 ? `Pila (${gameState.discardPile.length})` : ''}
             </div>
           </div>
@@ -775,7 +843,7 @@ export default function App() {
         {/* ── MANO GIOCATORE (Compatta in fondo) ─────────────────────────── */}
         <div className="shrink-0 flex flex-col justify-end pb-2 bg-[#071a0f]" style={{ overflow: 'visible' }}>
           {/* Header mano con bottoni ordinamento e barra azioni dinamica */}
-          <div className="flex items-center justify-between px-2.5 py-1 shrink-0 gap-1.5">
+          <div className="flex items-center justify-between px-2 py-1 shrink-0 gap-1">
             <button onClick={() => sortHand('value')}
               className="px-2 py-1 bg-slate-900 border border-amber-500/25 text-amber-500 font-bold text-[8px] uppercase tracking-wide rounded-md transition-all active:scale-95">
               Valore
@@ -795,16 +863,32 @@ export default function App() {
                   ✨ CALA ({selectedCardIds.size} CARTE)
                 </button>
               ) : selectedCardIds.size === 1 ? (
-                <button
-                  onClick={() => {
-                    const selectedCardId = Array.from(selectedCardIds)[0];
-                    const card = gameState.hands[0].find(c => c.id === selectedCardId);
-                    if (card) handleDiscard(card);
-                  }}
-                  className="px-3 py-1 bg-gradient-to-r from-rose-600 to-amber-600 border border-rose-400 text-white font-black text-[8.5px] uppercase tracking-wider rounded-full shadow-md active:scale-95"
-                >
-                  🗑️ SCARTA CARTA
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => moveSelectedCard(-1)}
+                    className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 border border-amber-500/30 text-amber-300 font-bold text-[8px] uppercase tracking-wider rounded-md active:scale-95 shadow"
+                    title="Sposta a sinistra"
+                  >
+                    ◀
+                  </button>
+                  <button
+                    onClick={() => {
+                      const selectedCardId = Array.from(selectedCardIds)[0];
+                      const card = gameState.hands[0].find(c => c.id === selectedCardId);
+                      if (card) handleDiscard(card);
+                    }}
+                    className="px-2.5 py-1 bg-gradient-to-r from-rose-600 to-amber-600 border border-rose-400 text-white font-black text-[8px] uppercase tracking-wider rounded-full shadow-md active:scale-95"
+                  >
+                    🗑️ SCARTA
+                  </button>
+                  <button
+                    onClick={() => moveSelectedCard(1)}
+                    className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 border border-amber-500/30 text-amber-300 font-bold text-[8px] uppercase tracking-wider rounded-md active:scale-95 shadow"
+                    title="Sposta a destra"
+                  >
+                    ▶
+                  </button>
+                </div>
               ) : (
                 <span className="text-[9px] uppercase whitespace-nowrap px-3 py-1 rounded-full font-black bg-amber-500/15 border border-amber-500/40 text-amber-300 tracking-[0.15em] shadow-[0_0_12px_rgba(245,158,11,0.3)] animate-pulse">
                   ★ IL TUO TURNO ★
@@ -834,24 +918,26 @@ export default function App() {
                 <div data-testid="hand-fan" className="relative h-24 mx-auto" style={{ width: `${handWidth}px`, overflow: 'visible' }}>
                   {hand.map((card, idx) => {
                     const isSelected = selectedCardIds.has(card.id);
+                    const isDraggingThis = draggedIdx === idx;
+                    const isHoveredTarget = dragOverIdx === idx && draggedIdx !== null && draggedIdx !== idx;
                     return (
                       <div
                         key={card.id}
-                        draggable={false}
                         data-testid="hand-card"
                         data-card-id={card.id}
                         className={`absolute w-14 h-20 transition-all duration-200 ease-out cursor-pointer select-none
+                          ${isDraggingThis ? 'opacity-30 scale-95 z-0' : 'opacity-100'}
+                          ${isHoveredTarget ? 'ring-2 ring-amber-400 rounded-md scale-105 z-40 shadow-2xl' : ''}
                           ${isSelected ? 'ring-2 ring-amber-400 rounded-md' : ''}`}
                         style={{
                           left: `${idx * spacing}px`,
                           transform: isSelected ? 'translateY(-20px)' : undefined,
-                          zIndex: idx + 10,
+                          zIndex: isHoveredTarget ? 30 : idx + 10,
                         }}
                         onClick={() => toggleCardSelect(card.id)}
-                        onTouchEnd={(e) => {
-                          e.preventDefault();
-                          toggleCardSelect(card.id);
-                        }}
+                        onTouchStart={(e) => handleTouchStartCard(e, idx)}
+                        onTouchMove={(e) => handleTouchMoveCard(e, spacing)}
+                        onTouchEnd={(e) => handleTouchEndCard(e, card.id)}
                       >
                         <CardView card={card} />
                       </div>

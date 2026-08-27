@@ -22,13 +22,13 @@ export const CardView: React.FC<CardViewProps> = ({
   let borderClass = 'border';
   
   if (size === 'mini') {
-    widthClass = 'w-9 h-13';
+    widthClass = 'w-11 h-16';
     innerPadding = 'p-0.5';
-    fontValue = 'text-[7.5px]';
-    fontSuitMini = 'text-[6px]';
-    fontSuitCenter = 'text-[14px]';
-    radiusClass = 'rounded-[4px]';
-    borderClass = 'border-[0.5px]';
+    fontValue = 'text-[9.5px]';
+    fontSuitMini = 'text-[7.5px]';
+    fontSuitCenter = 'text-[18px]';
+    radiusClass = 'rounded-[5px]';
+    borderClass = 'border-[0.8px]';
   } else if (size === 'micro') {
     widthClass = 'w-7 h-10';
     innerPadding = 'p-0.5';

@@ -23,9 +23,9 @@ export const MeldRow: React.FC<MeldRowProps> = ({
   lastUpdatedMeld,
   actionButton,
 }) => {
-  const cardSpacing = 16;
-  const cardHeight = 52; // mini is w-9 h-13 (36px x 52px)
-  const cardWidth = 36;
+  const cardSpacing = 18;
+  const cardHeight = 64; // mini is w-11 h-16 (44px x 64px)
+  const cardWidth = 44;
 
   return (
     <div className="flex flex-col w-full h-full select-none">
