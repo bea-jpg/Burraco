@@ -86,6 +86,12 @@ export default function App() {
       if (!service.isHost) return;
 
       setGameState(prev => {
+        // VALIDAZIONE RIGOROSA: solo il giocatore correntemente di turno può eseguire mosse
+        if (prev.currentPlayerIdx !== action.playerIdx) {
+          console.warn(`Azione rifiutata: Giocatore ${action.playerIdx} ha tentato di agire ma il turno appartiene a Giocatore ${prev.currentPlayerIdx}.`);
+          return prev;
+        }
+
         let updatedState = prev;
 
         if (action.type === 'DRAW_DECK') {
@@ -234,7 +240,8 @@ export default function App() {
     }
   }, [gameState.roundOver]);
 
-  const isMyTurn = gameState.currentPlayerIdx === myPlayerIdx && !isTransitioning;
+  const effectivePlayerIdx = isMultiplayer ? multiplayerServiceRef.current.myPlayerIdx : myPlayerIdx;
+  const isMyTurn = gameState.currentPlayerIdx === effectivePlayerIdx && !isTransitioning;
 
   // Gestione pescata
   const handleHumanDraw = () => {
@@ -242,16 +249,16 @@ export default function App() {
     setLastUpdatedMeld(null);
 
     if (!isMultiplayer) {
-      setGameState(prev => drawFromDeck(prev, myPlayerIdx));
+      setGameState(prev => drawFromDeck(prev, effectivePlayerIdx));
     } else {
       if (multiplayerServiceRef.current.isHost) {
-        const next = drawFromDeck(gameState, myPlayerIdx);
+        const next = drawFromDeck(gameState, effectivePlayerIdx);
         setGameState(next);
         multiplayerServiceRef.current.syncState(next);
       } else {
         multiplayerServiceRef.current.sendAction({
           type: 'DRAW_DECK',
-          playerIdx: myPlayerIdx
+          playerIdx: effectivePlayerIdx
         });
       }
     }
@@ -263,16 +270,16 @@ export default function App() {
     setLastUpdatedMeld(null);
 
     if (!isMultiplayer) {
-      setGameState(prev => takeDiscardPile(prev, myPlayerIdx));
+      setGameState(prev => takeDiscardPile(prev, effectivePlayerIdx));
     } else {
       if (multiplayerServiceRef.current.isHost) {
-        const next = takeDiscardPile(gameState, myPlayerIdx);
+        const next = takeDiscardPile(gameState, effectivePlayerIdx);
         setGameState(next);
         multiplayerServiceRef.current.syncState(next);
       } else {
         multiplayerServiceRef.current.sendAction({
           type: 'TAKE_DISCARD',
-          playerIdx: myPlayerIdx
+          playerIdx: effectivePlayerIdx
         });
       }
     }
@@ -295,11 +302,11 @@ export default function App() {
   // Calata nuova combinazione
   const handleNewMeld = () => {
     if (!isMyTurn || gameState.turnPhase !== 'play' || selectedCardIds.size === 0) return;
-    const hand = gameState.hands[myPlayerIdx];
+    const hand = gameState.hands[effectivePlayerIdx] || [];
     const selectedCards = hand.filter(card => selectedCardIds.has(card.id));
     
     if (!isMultiplayer) {
-      const res = meldNewCombination(gameState, myPlayerIdx, selectedCards);
+      const res = meldNewCombination(gameState, effectivePlayerIdx, selectedCards);
       if (res.success) {
         setGameState(res.state);
         setSelectedCardIds(new Set());
@@ -308,7 +315,7 @@ export default function App() {
       }
     } else {
       if (multiplayerServiceRef.current.isHost) {
-        const res = meldNewCombination(gameState, myPlayerIdx, selectedCards);
+        const res = meldNewCombination(gameState, effectivePlayerIdx, selectedCards);
         if (res.success) {
           setGameState(res.state);
           setSelectedCardIds(new Set());
@@ -319,7 +326,7 @@ export default function App() {
       } else {
         multiplayerServiceRef.current.sendAction({
           type: 'MELD_NEW',
-          playerIdx: myPlayerIdx,
+          playerIdx: effectivePlayerIdx,
           cards: selectedCards
         });
         setSelectedCardIds(new Set());
@@ -330,11 +337,11 @@ export default function App() {
   // Aggiunta a calata esistente
   const handleAddToMeld = (meldIdx: number) => {
     if (!isMyTurn || gameState.turnPhase !== 'play' || selectedCardIds.size === 0) return;
-    const hand = gameState.hands[myPlayerIdx];
+    const hand = gameState.hands[effectivePlayerIdx] || [];
     const selectedCards = hand.filter(card => selectedCardIds.has(card.id));
     
     if (!isMultiplayer) {
-      const res = addToExistingMeld(gameState, myPlayerIdx, meldIdx, selectedCards);
+      const res = addToExistingMeld(gameState, effectivePlayerIdx, meldIdx, selectedCards);
       if (res.success) {
         setGameState(res.state);
         setSelectedCardIds(new Set());
@@ -343,7 +350,7 @@ export default function App() {
       }
     } else {
       if (multiplayerServiceRef.current.isHost) {
-        const res = addToExistingMeld(gameState, myPlayerIdx, meldIdx, selectedCards);
+        const res = addToExistingMeld(gameState, effectivePlayerIdx, meldIdx, selectedCards);
         if (res.success) {
           setGameState(res.state);
           setSelectedCardIds(new Set());
@@ -354,7 +361,7 @@ export default function App() {
       } else {
         multiplayerServiceRef.current.sendAction({
           type: 'ADD_MELD',
-          playerIdx: myPlayerIdx,
+          playerIdx: effectivePlayerIdx,
           meldIdx,
           cards: selectedCards
         });
@@ -368,14 +375,14 @@ export default function App() {
     if (!isMyTurn || gameState.turnPhase !== 'play') return;
 
     if (!isMultiplayer) {
-      const res = discardCard(gameState, myPlayerIdx, card, false);
+      const res = discardCard(gameState, effectivePlayerIdx, card, false);
       if (res.success) {
         setGameState(res.state);
         setSelectedCardIds(new Set());
       } else if (res.msg === "CONFIRM_REQUIRED") {
         const confirmClose = window.confirm("Sei pronto a CHIUDERE il round con questo scarto?");
         if (confirmClose) {
-          const resConfirm = discardCard(gameState, myPlayerIdx, card, true);
+          const resConfirm = discardCard(gameState, effectivePlayerIdx, card, true);
           if (resConfirm.success) {
             setGameState(resConfirm.state);
             setSelectedCardIds(new Set());
@@ -386,7 +393,7 @@ export default function App() {
       }
     } else {
       if (multiplayerServiceRef.current.isHost) {
-        const res = discardCard(gameState, myPlayerIdx, card, false);
+        const res = discardCard(gameState, effectivePlayerIdx, card, false);
         if (res.success) {
           setGameState(res.state);
           setSelectedCardIds(new Set());
@@ -394,7 +401,7 @@ export default function App() {
         } else if (res.msg === "CONFIRM_REQUIRED") {
           const confirmClose = window.confirm("Sei pronto a CHIUDERE il round con questo scarto?");
           if (confirmClose) {
-            const resConfirm = discardCard(gameState, myPlayerIdx, card, true);
+            const resConfirm = discardCard(gameState, effectivePlayerIdx, card, true);
             if (resConfirm.success) {
               setGameState(resConfirm.state);
               setSelectedCardIds(new Set());
@@ -407,7 +414,7 @@ export default function App() {
       } else {
         multiplayerServiceRef.current.sendAction({
           type: 'DISCARD',
-          playerIdx: myPlayerIdx,
+          playerIdx: effectivePlayerIdx,
           cardToDiscard: card
         });
         setSelectedCardIds(new Set());
@@ -426,7 +433,7 @@ export default function App() {
         return;
       }
       const selectedCardId = Array.from(selectedCardIds)[0];
-      const card = gameState.hands[myPlayerIdx].find(c => c.id === selectedCardId);
+      const card = gameState.hands[effectivePlayerIdx]?.find(c => c.id === selectedCardId);
       if (card) handleDiscard(card);
     }
   };
@@ -434,7 +441,7 @@ export default function App() {
   // Ordinamento mano
   const sortHand = (type: 'value' | 'suit') => {
     setGameState(prev => {
-      const hand = [...prev.hands[myPlayerIdx]];
+      const hand = [...(prev.hands[effectivePlayerIdx] || [])];
       
       const rankOrder: { [key: string]: number } = {
         '3': 1, '4': 2, '5': 3, '6': 4, '7': 5, '8': 6, '9': 7, '10': 8, 'J': 9, 'Q': 10, 'K': 11, 'A': 12, '2': 13, 'Joker': 14
@@ -448,7 +455,7 @@ export default function App() {
       }
       
       const nextHands = [...prev.hands];
-      nextHands[myPlayerIdx] = hand;
+      nextHands[effectivePlayerIdx] = hand;
       return {
         ...prev,
         hands: nextHands
@@ -461,14 +468,14 @@ export default function App() {
   const moveCardInHand = (srcIdx: number, destIdx: number) => {
     if (srcIdx === destIdx) return;
     setGameState(prev => {
-      const nextHand = [...prev.hands[myPlayerIdx]];
+      const nextHand = [...(prev.hands[effectivePlayerIdx] || [])];
       if (srcIdx < 0 || srcIdx >= nextHand.length || destIdx < 0 || destIdx >= nextHand.length) return prev;
       
       const [card] = nextHand.splice(srcIdx, 1);
       nextHand.splice(destIdx, 0, card);
       
       const nextHands = [...prev.hands];
-      nextHands[myPlayerIdx] = nextHand;
+      nextHands[effectivePlayerIdx] = nextHand;
       return {
         ...prev,
         hands: nextHands
@@ -480,7 +487,7 @@ export default function App() {
   const moveSelectedCard = (direction: -1 | 1) => {
     if (selectedCardIds.size !== 1) return;
     const cardId = Array.from(selectedCardIds)[0];
-    const hand = gameState.hands[myPlayerIdx];
+    const hand = gameState.hands[effectivePlayerIdx] || [];
     const currIdx = hand.findIndex(c => c.id === cardId);
     if (currIdx === -1) return;
     const newIdx = currIdx + direction;
@@ -516,7 +523,7 @@ export default function App() {
 
     if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10 || touchStateRef.current.hasMoved) {
       touchStateRef.current.hasMoved = true;
-      const hand = gameState.hands[myPlayerIdx];
+      const hand = gameState.hands[effectivePlayerIdx] || [];
       const offsetIndices = Math.round(deltaX / spacing);
       const targetIdx = Math.max(0, Math.min(hand.length - 1, touchStateRef.current.srcIdx + offsetIndices));
       
@@ -674,9 +681,9 @@ Vince ${winnerName} con ${maxPoints} punti!`);
 
   // Elementi punteggio e attribuzione squadre
   const scoreResults = calculateRoundScores(gameState);
-  const activePlayerName = getPlayerDisplayName(gameState, gameState.currentPlayerIdx, myPlayerIdx);
+  const activePlayerName = getPlayerDisplayName(gameState, gameState.currentPlayerIdx, effectivePlayerIdx);
   const playerCount = gameState.config?.playerCount || 4;
-  const myTeamId = getPlayerTeamId(gameState, myPlayerIdx);
+  const myTeamId = getPlayerTeamId(gameState, effectivePlayerIdx);
   const oppTeamId = myTeamId === 0 ? 1 : 0;
 
   return (
@@ -771,8 +778,8 @@ Vince ${winnerName} con ${maxPoints} punti!`);
             {/* Avatar Giocatori in Alto */}
             <div className="shrink-0 flex items-center justify-around py-1.5 px-3 border-b border-slate-900/40 bg-black/20">
               {Array.from({ length: playerCount }).map((_, pIdx) => {
-                if (pIdx === myPlayerIdx) return null;
-                const pName = getPlayerDisplayName(gameState, pIdx, myPlayerIdx);
+                if (pIdx === effectivePlayerIdx) return null;
+                const pName = getPlayerDisplayName(gameState, pIdx, effectivePlayerIdx);
                 const isCurrent = gameState.currentPlayerIdx === pIdx;
                 const teamId = getPlayerTeamId(gameState, pIdx);
                 const isTeammate = teamId === myTeamId;
@@ -813,7 +820,7 @@ Vince ${winnerName} con ${maxPoints} punti!`);
               }`}>
                 {isMyTurn
                   ? (gameState.turnPhase === 'draw' ? "🟢 TOCCA A TE: Pesca dal mazzo o dagli scarti" : "🟢 TOCCA A TE: Gioca combinazioni o scarta")
-                  : `⏳ In attesa di ${activePlayerName} (${gameState.turnPhase === 'draw' ? 'sta pescando' : 'sta giocando'})`}
+                  : `⏳ In attesa di ${activePlayerName}...`}
               </div>
 
               <div className="flex items-center gap-8 sm:gap-12">
@@ -825,10 +832,10 @@ Vince ${winnerName} con ${maxPoints} punti!`);
                       <div className="absolute top-[3px] left-[3px] w-14 h-20 bg-[#0c1a30] rounded-md border border-amber-500/15" />
                     </>
                   )}
-                  <div data-testid="deck-card" className={`relative shadow-[1px_1px_0_#d4af37,_2px_2px_0_#d4af37,_3px_3px_8px_rgba(0,0,0,0.75)] rounded-md ${
-                    isMyTurn && gameState.turnPhase === 'draw' ? 'cursor-pointer ring-2 ring-emerald-400' : 'cursor-default opacity-85'
+                  <div data-testid="deck-card" className={`relative shadow-[1px_1px_0_#d4af37,_2px_2px_0_#d4af37,_3px_3px_8px_rgba(0,0,0,0.75)] rounded-md transition-all ${
+                    isMyTurn && gameState.turnPhase === 'draw' ? 'cursor-pointer ring-2 ring-emerald-400' : 'cursor-not-allowed opacity-60 pointer-events-none'
                   }`}>
-                    <CardView card={null} onClick={handleHumanDraw} size="normal" />
+                    <CardView card={null} onClick={isMyTurn && gameState.turnPhase === 'draw' ? handleHumanDraw : undefined} size="normal" />
                   </div>
                   <div className="text-[8px] font-black text-slate-400 mt-1">
                     {gameState.deck.length} CARTE
@@ -838,15 +845,15 @@ Vince ${winnerName} con ${maxPoints} punti!`);
                 {/* Scarti */}
                 <div
                   data-testid="discard-pile"
-                  className={`relative flex items-center min-w-[65px] min-h-[85px] ${
-                    isMyTurn ? 'cursor-pointer' : 'cursor-default'
+                  className={`relative flex items-center min-w-[65px] min-h-[85px] transition-all ${
+                    isMyTurn ? 'cursor-pointer' : 'cursor-not-allowed opacity-60 pointer-events-none'
                   }`}
-                  onClick={handleScartiClick}
+                  onClick={isMyTurn ? handleScartiClick : undefined}
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => {
                     const srcIdx = Number(e.dataTransfer.getData("text/plain"));
                     if (isMyTurn && gameState.turnPhase === 'play') {
-                      const card = gameState.hands[myPlayerIdx][srcIdx];
+                      const card = gameState.hands[effectivePlayerIdx]?.[srcIdx];
                       if (card) handleDiscard(card);
                     }
                   }}
@@ -887,7 +894,7 @@ Vince ${winnerName} con ${maxPoints} punti!`);
                     : 'text-slate-400 font-bold tracking-wider bg-slate-900/90 border border-slate-800'
                 }`}>
                   {isMyTurn ? (
-                    gameState.turnPhase === 'draw' ? '🟢 È IL TUO TURNO — Pesca dal mazzo o scarti' : '★ IL TUO TURNO — Gioca o Scarta'
+                    gameState.turnPhase === 'draw' ? '🟢 È IL TUO TURNO — Pesca' : '★ IL TUO TURNO — Gioca o Scarta'
                   ) : (
                     <>
                       <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
@@ -903,7 +910,7 @@ Vince ${winnerName} con ${maxPoints} punti!`);
               </div>
 
               {(() => {
-                const hand = gameState.hands[myPlayerIdx] || [];
+                const hand = gameState.hands[effectivePlayerIdx] || [];
                 const N = hand.length;
                 const maxFanWidth = isMobile ? 300 : 420;
                 const spacing = N <= 1 ? 52 : Math.min(44, maxFanWidth / (N - 1));
@@ -915,27 +922,21 @@ Vince ${winnerName} con ${maxPoints} punti!`);
                       const isDraggingThis = draggedIdx === idx;
                       const isHoveredTarget = dragOverIdx === idx && draggedIdx !== null && draggedIdx !== idx;
                       return (
-                        <div key={card.id} draggable={gameMode === 'game'}
-                          onDragStart={(e) => handleDragStart(e, idx)}
-                          onDragOver={(e) => handleDragOverCard(e, idx)}
-                          onDragLeave={() => { if (dragOverIdx === idx) setDragOverIdx(null); }}
-                          onDrop={(e) => handleDrop(e, idx)}
-                          onDragEnd={() => { setDraggedIdx(null); setDragOverIdx(null); }}
-                          onTouchStart={(e) => handleTouchStartCard(e, idx)}
-                          onTouchMove={(e) => handleTouchMoveCard(e, spacing)}
-                          onTouchEnd={(e) => handleTouchEndCard(e)}
-                          data-testid="hand-card" data-card-id={card.id}
-                          className={`absolute w-14 h-20 transition-all duration-200 ease-out cursor-grab select-none
-                            ${isDraggingThis ? 'opacity-20 scale-95 z-0' : 'opacity-100'}
+                        <div key={card.id} draggable={gameMode === 'game' && isMyTurn}
+                          onDragStart={(e) => isMyTurn && handleDragStart(e, idx)}
+                          onDragOver={(e) => isMyTurn && handleDragOverCard(e, idx)}
+                          onDrop={(e) => isMyTurn && handleDrop(e, idx)}
+                          className={`absolute w-14 h-20 transition-all duration-200 ease-out select-none
+                            ${isDraggingThis ? 'opacity-30 scale-95 z-0' : 'opacity-100'}
                             ${isHoveredTarget ? 'ring-2 ring-amber-400 rounded-md scale-105 z-40 shadow-2xl' : ''}
                             ${isSelected ? 'ring-2 ring-amber-400 rounded-md' : ''}`}
                           style={{
                             left: `${idx * spacing}px`,
-                            transform: isSelected ? 'translateY(-20px)' : undefined,
+                            transform: isSelected ? 'translateY(-24px)' : undefined,
                             zIndex: isHoveredTarget ? 30 : idx + 10,
+                            cursor: isMyTurn ? 'pointer' : 'not-allowed'
                           }}
-                          onClick={() => toggleCardSelect(card.id)}
-                        >
+                          onClick={() => toggleCardSelect(card.id)}>
                           <CardView card={card} />
                         </div>
                       );
@@ -946,9 +947,9 @@ Vince ${winnerName} con ${maxPoints} punti!`);
             </div>
           </div>
 
-          {/* Colonna Destra: Squadra Avversaria */}
+          {/* Colonna Destra: Avversari */}
           <MeldColumn
-            title={playerCount === 2 ? "AVVERSARIO" : `SQUADRA ${oppTeamId + 1} (Avversari)`}
+            title={playerCount === 2 ? "AVVERSARIO" : "SQUADRA AVVERSARIA"}
             teamId={oppTeamId}
             melds={gameState.teams[oppTeamId]?.melds || []}
             titleColorClass="text-red-400"
@@ -965,8 +966,8 @@ Vince ${winnerName} con ${maxPoints} punti!`);
           {/* Top Bar Bot / Giocatori */}
           <div className="shrink-0 flex items-center justify-between px-2.5 py-1.5 bg-slate-950/95 border-b border-slate-900 gap-1.5 overflow-x-auto">
             {Array.from({ length: playerCount }).map((_, pIdx) => {
-              if (pIdx === myPlayerIdx) return null;
-              const pName = getPlayerDisplayName(gameState, pIdx, myPlayerIdx);
+              if (pIdx === effectivePlayerIdx) return null;
+              const pName = getPlayerDisplayName(gameState, pIdx, effectivePlayerIdx);
               const isCurrent = gameState.currentPlayerIdx === pIdx;
               const teamId = getPlayerTeamId(gameState, pIdx);
               const isTeammate = teamId === myTeamId;
@@ -1013,7 +1014,7 @@ Vince ${winnerName} con ${maxPoints} punti!`);
               }`}>
               {isMyTurn
                 ? (gameState.turnPhase === 'draw' ? "🟢 TOCCA A TE: Pesca dal mazzo o dagli scarti" : "🟢 TOCCA A TE: Gioca combinazioni o scarta")
-                : `⏳ In attesa di ${activePlayerName} (${gameState.turnPhase === 'draw' ? 'sta pescando' : 'sta giocando'})`}
+                : `⏳ In attesa di ${activePlayerName}...`}
             </div>
 
             <div className="flex items-center justify-center gap-8">
@@ -1026,9 +1027,9 @@ Vince ${winnerName} con ${maxPoints} punti!`);
                   </>
                 )}
                 <div data-testid="deck-card" className={`relative shadow-[1px_1px_0_#d4af37,_2px_2px_0_#d4af37,_3px_3px_8px_rgba(0,0,0,0.75)] rounded-md transition-all ${
-                  isMyTurn && gameState.turnPhase === 'draw' ? 'cursor-pointer ring-2 ring-emerald-400' : 'cursor-not-allowed opacity-70 pointer-events-none'
+                  isMyTurn && gameState.turnPhase === 'draw' ? 'cursor-pointer ring-2 ring-emerald-400' : 'cursor-not-allowed opacity-60 pointer-events-none'
                 }`}>
-                  <CardView card={null} onClick={handleHumanDraw} size="normal" />
+                  <CardView card={null} onClick={isMyTurn && gameState.turnPhase === 'draw' ? handleHumanDraw : undefined} size="normal" />
                 </div>
                 <div className="text-center text-[8px] font-black text-slate-400 mt-0.5 whitespace-nowrap">
                   {gameState.deck.length} carte
@@ -1036,15 +1037,15 @@ Vince ${winnerName} con ${maxPoints} punti!`);
               </div>
 
               {/* Scarti */}
-              <div data-testid="discard-pile" className={`relative flex items-center ${
-                isMyTurn ? 'cursor-pointer' : 'cursor-not-allowed opacity-70 pointer-events-none'
+              <div data-testid="discard-pile" className={`relative flex items-center transition-all ${
+                isMyTurn ? 'cursor-pointer' : 'cursor-not-allowed opacity-60 pointer-events-none'
               }`} style={{ minWidth: '60px', minHeight: '82px' }}
-                onClick={handleScartiClick}
+                onClick={isMyTurn ? handleScartiClick : undefined}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
                   const srcIdx = Number(e.dataTransfer.getData("text/plain"));
                   if (isMyTurn && gameState.turnPhase === 'play') {
-                    const card = gameState.hands[myPlayerIdx][srcIdx];
+                    const card = gameState.hands[effectivePlayerIdx]?.[srcIdx];
                     if (card) handleDiscard(card);
                   }
                 }}>
@@ -1149,7 +1150,7 @@ Vince ${winnerName} con ${maxPoints} punti!`);
                       data-testid="discard-button"
                       onClick={() => {
                         const selectedCardId = Array.from(selectedCardIds)[0];
-                        const card = gameState.hands[myPlayerIdx]?.find(c => c.id === selectedCardId);
+                        const card = gameState.hands[effectivePlayerIdx]?.find(c => c.id === selectedCardId);
                         if (card) handleDiscard(card);
                       }}
                       className="px-2.5 py-1 bg-gradient-to-r from-rose-600 to-amber-600 border border-rose-400 text-white font-black text-[8px] uppercase tracking-wider rounded-full shadow-md active:scale-95"
@@ -1184,7 +1185,7 @@ Vince ${winnerName} con ${maxPoints} punti!`);
 
             {/* Carte in mano con spazio sopra per il sollevamento carte senza sovrapporsi ai pulsanti */}
             {(() => {
-              const hand = gameState.hands[myPlayerIdx] || [];
+              const hand = gameState.hands[effectivePlayerIdx] || [];
               const N = hand.length;
               const maxFanWidth = isPortrait ? Math.min(window.innerWidth - 24, 320) : Math.min(window.innerWidth - 24, 400);
               const spacing = N <= 1 ? 48 : Math.min(44, maxFanWidth / (N - 1));

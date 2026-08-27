@@ -45,7 +45,7 @@ export type NetworkMessage =
   | { type: 'JOIN_REQUEST'; name: string }
   | { type: 'JOIN_ACCEPTED'; playerIdx: number; config: GameConfig; players: NetworkPlayer[] }
   | { type: 'ROOM_UPDATE'; config: GameConfig; players: NetworkPlayer[] }
-  | { type: 'GAME_START'; state: GameState; config: GameConfig }
+  | { type: 'GAME_START'; state: GameState; config: GameConfig; playerIdx?: number }
   | { type: 'PLAYER_ACTION'; action: NetworkAction }
   | { type: 'STATE_SYNC'; state: GameState }
   | { type: 'CHAT'; message: ChatMessage }
@@ -340,6 +340,9 @@ export class MultiplayerService {
 
       case "GAME_START": {
         this.config = msg.config;
+        if (msg.playerIdx !== undefined) {
+          this.myPlayerIdx = msg.playerIdx;
+        }
         this.emit("gameStarted", msg.state, this.myPlayerIdx);
         break;
       }
@@ -395,11 +398,18 @@ export class MultiplayerService {
   // L'Host avvia la partita
   public startGame(initialState: GameState): void {
     if (!this.isHost || !this.config) return;
-    this.broadcast({
-      type: "GAME_START",
-      state: initialState,
-      config: this.config
-    });
+    // Invia GAME_START a ciascun peer con il suo playerIdx assegnato
+    for (const [peerId, conn] of this.connections.entries()) {
+      const p = this.players.find(pl => pl.peerId === peerId);
+      const targetIdx = p ? p.playerIdx : 1;
+      conn.send({
+        type: "GAME_START",
+        state: initialState,
+        config: this.config,
+        playerIdx: targetIdx
+      });
+    }
+    this.myPlayerIdx = 0;
     this.emit("gameStarted", initialState, 0);
   }
 
