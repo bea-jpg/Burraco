@@ -1002,10 +1002,11 @@ Vince ${winnerName} con ${maxPoints} punti!`);
             />
           </div>
 
-          {/* Zona Centrale: Mazzo + Scarti */}
-          <div className="shrink-0 flex items-center justify-center gap-8 py-1.5 px-4 bg-[#071a0f] relative border-b border-slate-900/40">
+          {/* Zona Centrale: Mazzo + Scarti con barra di stato turno integrata */}
+          <div className="shrink-0 flex flex-col items-center justify-center py-2 px-4 bg-[#071a0f] border-b border-slate-900/60 gap-1.5">
+            {/* Banner di stato turno centrale senza collisioni con le calate */}
             <div key={gameState.history.length}
-              className={`absolute -top-2.5 left-1/2 -translate-x-1/2 z-10 px-3.5 py-0.5 rounded-full text-[8.5px] font-extrabold whitespace-nowrap max-w-[75vw] truncate animate-card-pop shadow-md border ${
+              className={`px-3.5 py-0.5 rounded-full text-[8.5px] font-extrabold whitespace-nowrap max-w-[80vw] truncate animate-card-pop shadow-md border ${
                 isMyTurn
                   ? "bg-emerald-950/90 border-emerald-400 text-emerald-300 animate-pulse"
                   : "bg-slate-950/90 border-slate-700 text-slate-300"
@@ -1015,54 +1016,56 @@ Vince ${winnerName} con ${maxPoints} punti!`);
                 : `⏳ In attesa di ${activePlayerName} (${gameState.turnPhase === 'draw' ? 'sta pescando' : 'sta giocando'})`}
             </div>
 
-            {/* Mazzo */}
-            <div className="relative group mt-1.5 flex flex-col items-center">
-              {gameState.deck.length > 3 && (
-                <>
-                  <div className="absolute top-[1.5px] left-[1.5px] w-14 h-20 bg-[#0c1a30] rounded-md border border-amber-500/10" />
-                  <div className="absolute top-[3px] left-[3px] w-14 h-20 bg-[#0c1a30] rounded-md border border-amber-500/15" />
-                </>
-              )}
-              <div data-testid="deck-card" className={`relative shadow-[1px_1px_0_#d4af37,_2px_2px_0_#d4af37,_3px_3px_8px_rgba(0,0,0,0.75)] rounded-md ${
-                isMyTurn && gameState.turnPhase === 'draw' ? 'cursor-pointer ring-2 ring-emerald-400' : 'cursor-default opacity-85'
-              }`}>
-                <CardView card={null} onClick={handleHumanDraw} size="normal" />
-              </div>
-              <div className="text-center text-[8px] font-black text-slate-400 mt-0.5 whitespace-nowrap">
-                {gameState.deck.length} carte
-              </div>
-            </div>
-
-            {/* Scarti */}
-            <div data-testid="discard-pile" className={`relative flex items-center mt-1.5 ${
-              isMyTurn ? 'cursor-pointer' : 'cursor-default'
-            }`} style={{ minWidth: '60px', minHeight: '82px' }}
-              onClick={handleScartiClick}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                const srcIdx = Number(e.dataTransfer.getData("text/plain"));
-                if (isMyTurn && gameState.turnPhase === 'play') {
-                  const card = gameState.hands[myPlayerIdx][srcIdx];
-                  if (card) handleDiscard(card);
-                }
-              }}>
-              {gameState.discardPile.length === 0 ? (
-                <div className="w-14 h-20 rounded-md border border-dashed border-amber-500/20 flex items-center justify-center text-[7.5px] text-amber-400/40 font-black tracking-widest">
-                  SCARTI
+            <div className="flex items-center justify-center gap-8">
+              {/* Mazzo */}
+              <div className="relative group flex flex-col items-center">
+                {gameState.deck.length > 3 && (
+                  <>
+                    <div className="absolute top-[1.5px] left-[1.5px] w-14 h-20 bg-[#0c1a30] rounded-md border border-amber-500/10" />
+                    <div className="absolute top-[3px] left-[3px] w-14 h-20 bg-[#0c1a30] rounded-md border border-amber-500/15" />
+                  </>
+                )}
+                <div data-testid="deck-card" className={`relative shadow-[1px_1px_0_#d4af37,_2px_2px_0_#d4af37,_3px_3px_8px_rgba(0,0,0,0.75)] rounded-md transition-all ${
+                  isMyTurn && gameState.turnPhase === 'draw' ? 'cursor-pointer ring-2 ring-emerald-400' : 'cursor-not-allowed opacity-70 pointer-events-none'
+                }`}>
+                  <CardView card={null} onClick={handleHumanDraw} size="normal" />
                 </div>
-              ) : (
-                gameState.discardPile.slice(-6).map((card, idx, arr) => {
-                  const angle = (idx - (arr.length - 1) / 2) * 5;
-                  return (
-                    <div key={card.id} className="absolute transition-transform duration-200"
-                      style={{ left: `${idx * 12}px`, zIndex: idx, transform: `rotate(${angle}deg)` }}>
-                      <CardView card={card} size="normal" />
-                    </div>
-                  );
-                })
-              )}
-              <div className="text-center text-[8px] font-black text-slate-400 absolute -bottom-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                {gameState.discardPile.length > 0 ? `Pila (${gameState.discardPile.length})` : ''}
+                <div className="text-center text-[8px] font-black text-slate-400 mt-0.5 whitespace-nowrap">
+                  {gameState.deck.length} carte
+                </div>
+              </div>
+
+              {/* Scarti */}
+              <div data-testid="discard-pile" className={`relative flex items-center ${
+                isMyTurn ? 'cursor-pointer' : 'cursor-not-allowed opacity-70 pointer-events-none'
+              }`} style={{ minWidth: '60px', minHeight: '82px' }}
+                onClick={handleScartiClick}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  const srcIdx = Number(e.dataTransfer.getData("text/plain"));
+                  if (isMyTurn && gameState.turnPhase === 'play') {
+                    const card = gameState.hands[myPlayerIdx][srcIdx];
+                    if (card) handleDiscard(card);
+                  }
+                }}>
+                {gameState.discardPile.length === 0 ? (
+                  <div className="w-14 h-20 rounded-md border border-dashed border-amber-500/20 flex items-center justify-center text-[7.5px] text-amber-400/40 font-black tracking-widest">
+                    SCARTI
+                  </div>
+                ) : (
+                  gameState.discardPile.slice(-6).map((card, idx, arr) => {
+                    const angle = (idx - (arr.length - 1) / 2) * 5;
+                    return (
+                      <div key={card.id} className="absolute transition-transform duration-200"
+                        style={{ left: `${idx * 12}px`, zIndex: idx, transform: `rotate(${angle}deg)` }}>
+                        <CardView card={card} size="normal" />
+                      </div>
+                    );
+                  })
+                )}
+                <div className="text-center text-[8px] font-black text-slate-400 absolute -bottom-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                  {gameState.discardPile.length > 0 ? `Pila (${gameState.discardPile.length})` : ''}
+                </div>
               </div>
             </div>
           </div>
@@ -1179,7 +1182,7 @@ Vince ${winnerName} con ${maxPoints} punti!`);
               </button>
             </div>
 
-            {/* Carte in mano */}
+            {/* Carte in mano con spazio sopra per il sollevamento carte senza sovrapporsi ai pulsanti */}
             {(() => {
               const hand = gameState.hands[myPlayerIdx] || [];
               const N = hand.length;
@@ -1187,7 +1190,7 @@ Vince ${winnerName} con ${maxPoints} punti!`);
               const spacing = N <= 1 ? 48 : Math.min(44, maxFanWidth / (N - 1));
               const handWidth = N === 0 ? 0 : (N - 1) * spacing + 56;
               return (
-                <div className="w-full" style={{ overflowX: 'clip', overflowY: 'visible', paddingTop: '16px', paddingBottom: '6px' }}>
+                <div className="w-full" style={{ overflowX: 'clip', overflowY: 'visible', paddingTop: '28px', paddingBottom: '8px' }}>
                   <div data-testid="hand-fan" className="relative h-20 mx-auto" style={{ width: `${handWidth}px`, overflow: 'visible' }}>
                     {hand.map((card, idx) => {
                       const isSelected = selectedCardIds.has(card.id);
@@ -1198,8 +1201,9 @@ Vince ${winnerName} con ${maxPoints} punti!`);
                           key={card.id}
                           data-testid="hand-card"
                           data-card-id={card.id}
-                          className={`absolute w-14 h-20 transition-all duration-200 ease-out cursor-pointer select-none
-                            ${isDraggingThis ? 'opacity-30 scale-95 z-0' : 'opacity-100'}
+                          className={`absolute w-14 h-20 transition-all duration-200 ease-out select-none ${
+                            isMyTurn ? 'cursor-pointer' : 'cursor-not-allowed opacity-90'
+                          } ${isDraggingThis ? 'opacity-30 scale-95 z-0' : 'opacity-100'}
                             ${isHoveredTarget ? 'ring-2 ring-amber-400 rounded-md scale-105 z-40 shadow-2xl' : ''}
                             ${isSelected ? 'ring-2 ring-amber-400 rounded-md' : ''}`}
                           style={{
