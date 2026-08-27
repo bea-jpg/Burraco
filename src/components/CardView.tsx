@@ -4,7 +4,7 @@ import type { Card } from '../types/card';
 interface CardViewProps {
   card: Card | null; // null represents card back
   onClick?: () => void;
-  size?: 'normal' | 'mini' | 'micro';
+  size?: 'normal' | 'mini' | 'compact' | 'micro';
 }
 
 export const CardView: React.FC<CardViewProps> = ({
@@ -28,6 +28,14 @@ export const CardView: React.FC<CardViewProps> = ({
     fontSuitMini = 'text-[7.5px]';
     fontSuitCenter = 'text-[18px]';
     radiusClass = 'rounded-[5px]';
+    borderClass = 'border-[0.8px]';
+  } else if (size === 'compact') {
+    widthClass = 'w-9 h-13';
+    innerPadding = 'p-0.5';
+    fontValue = 'text-[9px]';
+    fontSuitMini = 'text-[7px]';
+    fontSuitCenter = 'text-[15px]';
+    radiusClass = 'rounded-[4px]';
     borderClass = 'border-[0.8px]';
   } else if (size === 'micro') {
     widthClass = 'w-7 h-10';

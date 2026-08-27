@@ -82,15 +82,19 @@ export const MeldColumn: React.FC<MeldColumnProps> = ({
 
                 {/* Carte Fanned */}
                 <div className={`relative ${rowHeightClass} w-full flex items-center overflow-visible pl-1.5`}>
-                  {meld.cards.map((card, cIdx) => (
-                    <div
-                      key={card.id}
-                      className="absolute transition-transform duration-200 hover:-translate-y-2 hover:z-50"
-                      style={{ left: `${cIdx * cardSpacing}px`, zIndex: cIdx }}
-                    >
-                      <CardView card={card} size={cardSize} />
-                    </div>
-                  ))}
+                  {(() => {
+                    const N = meld.cards.length;
+                    const dynamicSpacing = N <= 1 ? 0 : Math.min(cardSpacing, Math.max(7, Math.floor((cardSize === 'mini' ? 65 : 110) / (N - 1))));
+                    return meld.cards.map((card, cIdx) => (
+                      <div
+                        key={card.id}
+                        className="absolute transition-transform duration-200 hover:-translate-y-2 hover:z-50"
+                        style={{ left: `${cIdx * dynamicSpacing}px`, zIndex: cIdx }}
+                      >
+                        <CardView card={card} size={cardSize} />
+                      </div>
+                    ));
+                  })()}
                   
                   {/* Badge Burraco (se >= 7 carte) */}
                   {meld.cards.length >= 7 && (
