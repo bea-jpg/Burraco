@@ -674,7 +674,7 @@ Vince ${winnerName} con ${maxPoints} punti!`);
   const playerCount = gameState.config?.playerCount || 4;
 
   return (
-    <div className="flex h-[100dvh] min-h-[100dvh] max-h-[100dvh] w-screen flex-col bg-[#051108] text-slate-100 overflow-hidden font-sans select-none">
+    <div className="fixed inset-0 w-full h-[100dvh] flex flex-col bg-[#051108] text-slate-100 overflow-hidden font-sans select-none">
       
       {/* ── HEADER TOP BAR ──────────────────────────────────────────────── */}
       <header className="h-10 sm:h-12 bg-slate-950/90 border-b border-amber-500/20 px-3 sm:px-6 flex items-center justify-between z-30 shrink-0">
@@ -969,7 +969,7 @@ Vince ${winnerName} con ${maxPoints} punti!`);
           </div>
 
           {/* Calate Squadra 2 (Avversari) */}
-          <div className="flex-1 min-h-[65px] max-h-[28%] bg-[#030b06] border-b border-slate-900/60 flex flex-col overflow-hidden">
+          <div className="flex-1 min-h-[50px] max-h-[22vh] bg-[#030b06] border-b border-slate-900/60 flex flex-col overflow-hidden">
             <MeldRow
               teamId={1}
               melds={gameState.teams[1]?.melds || []}
@@ -1036,7 +1036,7 @@ Vince ${winnerName} con ${maxPoints} punti!`);
           </div>
 
           {/* Calate Squadra 1 (Noi) */}
-          <div className="flex-1 min-h-[65px] max-h-[28%] bg-[#040f08]/90 border-b border-slate-900/60 flex flex-col overflow-hidden">
+          <div className="flex-1 min-h-[50px] max-h-[22vh] bg-[#040f08]/90 border-b border-slate-900/60 flex flex-col overflow-hidden">
             <MeldRow
               teamId={0}
               melds={gameState.teams[0]?.melds || []}
@@ -1074,8 +1074,14 @@ Vince ${winnerName} con ${maxPoints} punti!`);
             />
           </div>
 
-          {/* Mano Giocatore in Fondo con respiro inferiore */}
-          <div className="shrink-0 flex flex-col justify-end pb-5 sm:pb-3 bg-[#071a0f]" style={{ overflow: 'visible' }}>
+          {/* Mano Giocatore in Fondo con respiro inferiore per safe-area iOS/Android */}
+          <div
+            className="shrink-0 flex flex-col justify-end bg-[#071a0f]"
+            style={{
+              paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 24px)',
+              overflow: 'visible'
+            }}
+          >
             <div className="flex items-center justify-between px-2 py-1 shrink-0 gap-1">
               <button onClick={() => sortHand('value')}
                 className="px-2 py-1 bg-slate-900 border border-amber-500/25 text-amber-400 font-bold text-[8px] uppercase tracking-wide rounded-md transition-all active:scale-95">
@@ -1147,7 +1153,7 @@ Vince ${winnerName} con ${maxPoints} punti!`);
               const spacing = N <= 1 ? 48 : Math.min(44, maxFanWidth / (N - 1));
               const handWidth = N === 0 ? 0 : (N - 1) * spacing + 56;
               return (
-                <div className="w-full" style={{ overflowX: 'clip', overflowY: 'visible', paddingTop: '18px', paddingBottom: '10px' }}>
+                <div className="w-full" style={{ overflowX: 'clip', overflowY: 'visible', paddingTop: '16px', paddingBottom: '6px' }}>
                   <div data-testid="hand-fan" className="relative h-20 mx-auto" style={{ width: `${handWidth}px`, overflow: 'visible' }}>
                     {hand.map((card, idx) => {
                       const isSelected = selectedCardIds.has(card.id);
