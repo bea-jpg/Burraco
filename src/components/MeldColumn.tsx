@@ -12,9 +12,10 @@ interface MeldColumnProps {
   onButtonClick?: () => void;
   isButtonDisabled?: boolean;
   lastUpdatedMeld: [number, number] | null; // [teamId, meldIdx]
-  points: number;
+  points?: number;
   onClose?: () => void;
   cardSize?: 'normal' | 'mini';
+  actionButton?: React.ReactNode;
 }
 
 export const MeldColumn: React.FC<MeldColumnProps> = ({
@@ -27,9 +28,10 @@ export const MeldColumn: React.FC<MeldColumnProps> = ({
   onButtonClick,
   isButtonDisabled = false,
   lastUpdatedMeld,
-  points,
+  points = 0,
   onClose,
-  cardSize = 'normal'
+  cardSize = 'normal',
+  actionButton
 }) => {
   const cardSpacing = cardSize === 'mini' ? 10 : 15;
   const rowHeightClass = cardSize === 'mini' ? 'h-14' : 'h-22';
@@ -108,8 +110,13 @@ export const MeldColumn: React.FC<MeldColumnProps> = ({
         )}
       </div>
 
-      {/* Bottone a fondo colonna (opzionale) */}
-      {buttonText && onButtonClick && (
+      {/* Bottone azione personalizzato o standard a fondo colonna */}
+      {actionButton && (
+        <div className="p-2 lg:p-3 border-t border-slate-900 bg-slate-950/90 shadow-[0_-5px_15px_rgba(0,0,0,0.5)]">
+          {actionButton}
+        </div>
+      )}
+      {!actionButton && buttonText && onButtonClick && (
         <div className="p-3 border-t border-slate-900 bg-slate-950/90 shadow-[0_-5px_15px_rgba(0,0,0,0.5)]">
           <button
             onClick={() => {

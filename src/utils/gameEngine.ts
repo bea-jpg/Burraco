@@ -10,18 +10,31 @@ export interface Meld {
 }
 
 export interface Team {
-  id: number; // 0: Squadra 1 (Giocatore 1 e 3), 1: Squadra 2 (Giocatore 2 e 4)
+  id: number; // 0: Squadra 1, 1: Squadra 2, etc.
+  name?: string;
   points: number;
   hasTakenPozzetto: boolean;
   melds: Meld[];
+  playerIndices: number[];
+}
+
+export interface GameConfig {
+  playerCount: number; // 2 | 3 | 4 | 5 | 6
+  playerNames: string[];
+  roundNumber?: number;
+  teamPoints?: number[];
+  targetPoints?: number;
+  isOnline?: boolean;
 }
 
 export interface GameState {
+  config: GameConfig;
   deck: Card[];
   discardPile: Card[];
-  hands: Card[][]; // [Umano, Bot2, Bot3, Bot4]
-  pozzetti: Card[][]; // 2 pozzetti
+  hands: Card[][]; // 1 mano per ogni giocatore (da 2 a 6)
+  pozzetti: Card[][];
   teams: Team[];
+  playerTeamMap: number[]; // playerIdx -> teamId
   currentPlayerIdx: number;
   turnPhase: 'draw' | 'play';
   roundOver: boolean;
@@ -29,46 +42,147 @@ export interface GameState {
   history: string[];
 }
 
-export function createInitialState(roundNumber = 1, teamPoints = [0, 0]): GameState {
-  let deck = shuffleDeck(createDeck());
+export function getDefaultConfig(playerCount = 4, customNames?: string[]): GameConfig {
+  const defaultNames = ["Tu", "Bot 2", "Bot 3", "Bot 4", "Bot 5", "Bot 6"];
+  const names = customNames && customNames.length >= playerCount
+    ? customNames
+    : defaultNames.slice(0, playerCount);
+
+  return {
+    playerCount,
+    playerNames: names,
+    roundNumber: 1,
+    teamPoints: [0, 0],
+    targetPoints: 2000,
+    isOnline: false
+  };
+}
+
+export function createInitialState(configOrRound?: GameConfig | number, legacyPoints?: number[]): GameState {
+  let config: GameConfig;
+  if (typeof configOrRound === 'number' || !configOrRound) {
+    const round = typeof configOrRound === 'number' ? configOrRound : 1;
+    config = getDefaultConfig(4);
+    config.roundNumber = round;
+    if (legacyPoints) config.teamPoints = legacyPoints;
+  } else {
+    config = configOrRound;
+  }
+
+  const playerCount = config.playerCount || 4;
+  const numDecks = playerCount >= 5 ? 3 : 2; // 3 mazzi (162 carte) per 5 o 6 giocatori, 2 mazzi (108 carte) per 2-4
+  let deck = shuffleDeck(createDeck(numDecks));
   
   // Distribuzione mani (11 carte ciascuno)
-  const hands: Card[][] = [[], [], [], []];
+  const hands: Card[][] = Array.from({ length: playerCount }, () => []);
   for (let i = 0; i < 11; i++) {
-    for (let p = 0; p < 4; p++) {
+    for (let p = 0; p < playerCount; p++) {
       hands[p].push(deck.pop()!);
     }
   }
   
-  // Pozzetti (11 carte ciascuno)
-  const pozzetti: Card[][] = [[], []];
-  for (let i = 0; i < 11; i++) {
-    pozzetti[0].push(deck.pop()!);
-    pozzetti[1].push(deck.pop()!);
+  // Pozzetti in base al numero di giocatori
+  // 2 o 4 giocatori: 2 pozzetti da 11 carte
+  // 3 giocatori: 1 da 18 carte (singolo) e 1 da 11 carte (coppia)
+  // 5 giocatori: 1 da 18 carte e 1 da 11 carte (con 3 mazzi)
+  // 6 giocatori: 2 pozzetti da 18 carte (con 3 mazzi per squadre da 3)
+  const pozzetti: Card[][] = [];
+  if (playerCount === 3 || playerCount === 5) {
+    const p18: Card[] = [];
+    for (let i = 0; i < 18; i++) p18.push(deck.pop()!);
+    const p11: Card[] = [];
+    for (let i = 0; i < 11; i++) p11.push(deck.pop()!);
+    pozzetti.push(p18, p11);
+  } else if (playerCount === 6) {
+    const p1: Card[] = [];
+    const p2: Card[] = [];
+    for (let i = 0; i < 18; i++) {
+      p1.push(deck.pop()!);
+      p2.push(deck.pop()!);
+    }
+    pozzetti.push(p1, p2);
+  } else {
+    // 2 o 4 giocatori
+    const p1: Card[] = [];
+    const p2: Card[] = [];
+    for (let i = 0; i < 11; i++) {
+      p1.push(deck.pop()!);
+      p2.push(deck.pop()!);
+    }
+    pozzetti.push(p1, p2);
   }
   
   // Primo scarto
   const discardPile: Card[] = [deck.pop()!];
+
+  // Configurazione Squadre
+  let teams: Team[] = [];
+  let playerTeamMap: number[] = [];
+
+  if (playerCount === 2) {
+    teams = [
+      { id: 0, name: config.playerNames[0] || "Giocatore 1", points: config.teamPoints?.[0] || 0, hasTakenPozzetto: false, melds: [], playerIndices: [0] },
+      { id: 1, name: config.playerNames[1] || "Giocatore 2", points: config.teamPoints?.[1] || 0, hasTakenPozzetto: false, melds: [], playerIndices: [1] }
+    ];
+    playerTeamMap = [0, 1];
+  } else if (playerCount === 3) {
+    teams = [
+      { id: 0, name: "Singolo", points: config.teamPoints?.[0] || 0, hasTakenPozzetto: false, melds: [], playerIndices: [0] },
+      { id: 1, name: "Coppia", points: config.teamPoints?.[1] || 0, hasTakenPozzetto: false, melds: [], playerIndices: [1, 2] }
+    ];
+    playerTeamMap = [0, 1, 1];
+  } else if (playerCount === 6) {
+    // 2 squadre da 3 giocatori seduti alternati: S1 = [0, 2, 4], S2 = [1, 3, 5]
+    teams = [
+      { id: 0, name: "Squadra 1", points: config.teamPoints?.[0] || 0, hasTakenPozzetto: false, melds: [], playerIndices: [0, 2, 4] },
+      { id: 1, name: "Squadra 2", points: config.teamPoints?.[1] || 0, hasTakenPozzetto: false, melds: [], playerIndices: [1, 3, 5] }
+    ];
+    playerTeamMap = [0, 1, 0, 1, 0, 1];
+  } else if (playerCount === 5) {
+    teams = [
+      { id: 0, name: "Squadra 1 (3G)", points: config.teamPoints?.[0] || 0, hasTakenPozzetto: false, melds: [], playerIndices: [0, 2, 4] },
+      { id: 1, name: "Squadra 2 (2G)", points: config.teamPoints?.[1] || 0, hasTakenPozzetto: false, melds: [], playerIndices: [1, 3] }
+    ];
+    playerTeamMap = [0, 1, 0, 1, 0];
+  } else {
+    // 4 giocatori standard: S1 = [0, 2], S2 = [1, 3]
+    teams = [
+      { id: 0, name: "Squadra 1", points: config.teamPoints?.[0] || 0, hasTakenPozzetto: false, melds: [], playerIndices: [0, 2] },
+      { id: 1, name: "Squadra 2", points: config.teamPoints?.[1] || 0, hasTakenPozzetto: false, melds: [], playerIndices: [1, 3] }
+    ];
+    playerTeamMap = [0, 1, 0, 1];
+  }
   
   return {
+    config,
     deck,
     discardPile,
     hands,
     pozzetti,
-    teams: [
-      { id: 0, points: teamPoints[0], hasTakenPozzetto: false, melds: [] },
-      { id: 1, points: teamPoints[1], hasTakenPozzetto: false, melds: [] }
-    ],
+    teams,
+    playerTeamMap,
     currentPlayerIdx: 0,
     turnPhase: 'draw',
     roundOver: false,
-    roundNumber,
+    roundNumber: config.roundNumber || 1,
     history: ["Partita iniziata! Pesca dal mazzo o raccogli gli scarti."]
   };
 }
 
-export function getPlayerTeamId(playerIdx: number): number {
-  return playerIdx % 2 === 0 ? 0 : 1;
+export function getPlayerTeamId(stateOrPlayerIdx: GameState | number, playerIdxParam?: number): number {
+  if (typeof stateOrPlayerIdx === 'number') {
+    return stateOrPlayerIdx % 2 === 0 ? 0 : 1;
+  }
+  const playerIdx = playerIdxParam !== undefined ? playerIdxParam : stateOrPlayerIdx.currentPlayerIdx;
+  return stateOrPlayerIdx.playerTeamMap[playerIdx] ?? (playerIdx % 2 === 0 ? 0 : 1);
+}
+
+export function getPlayerDisplayName(state: GameState, playerIdx: number, myPlayerIdx = 0): string {
+  if (playerIdx === myPlayerIdx) return "Tu";
+  if (state.config.playerNames && state.config.playerNames[playerIdx]) {
+    return state.config.playerNames[playerIdx];
+  }
+  return `G.${playerIdx + 1}`;
 }
 
 export function drawFromDeck(state: GameState, playerIdx: number): GameState {
@@ -361,13 +475,15 @@ function nextTurn(state: GameState): GameState {
     return newState;
   }
   
-  newState.currentPlayerIdx = (state.currentPlayerIdx + 1) % 4;
+  const playerCount = state.config.playerCount || 4;
+  newState.currentPlayerIdx = (state.currentPlayerIdx + 1) % playerCount;
   newState.turnPhase = 'draw';
   
   return newState;
 }
 
 export interface ScoreDetails {
+  teamName: string;
   meldedCardsValue: number;
   burracoBonus: number;
   closingBonus: number;
@@ -377,13 +493,17 @@ export interface ScoreDetails {
 }
 
 export function calculateRoundScores(state: GameState): { scores: number[]; details: ScoreDetails[] } {
-  const details: ScoreDetails[] = [
-    { meldedCardsValue: 0, burracoBonus: 0, closingBonus: 0, pozzettoPenalty: 0, handPenalty: 0, total: 0 },
-    { meldedCardsValue: 0, burracoBonus: 0, closingBonus: 0, pozzettoPenalty: 0, handPenalty: 0, total: 0 }
-  ];
+  const numTeams = state.teams.length;
+  const details: ScoreDetails[] = [];
+  const scores: number[] = [];
   
-  for (let tId = 0; tId < 2; tId++) {
+  for (let tId = 0; tId < numTeams; tId++) {
     const team = state.teams[tId];
+    const playerIndices = team.playerIndices && team.playerIndices.length > 0
+      ? team.playerIndices
+      : state.playerTeamMap
+          .map((teamIndex, pIdx) => teamIndex === tId ? pIdx : -1)
+          .filter(pIdx => pIdx !== -1);
     
     // 1. Somma valori carte calate
     let meldedCardsValue = 0;
@@ -398,8 +518,7 @@ export function calculateRoundScores(state: GameState): { scores: number[]; deta
     
     // 2. Bonus chiusura
     let closingBonus = 0;
-    const players = tId === 0 ? [0, 2] : [1, 3];
-    const closed = state.roundOver && players.some(p => state.hands[p].length === 0);
+    const closed = state.roundOver && playerIndices.some(p => state.hands[p] && state.hands[p].length === 0);
     if (closed) {
       closingBonus = 100;
     }
@@ -412,24 +531,28 @@ export function calculateRoundScores(state: GameState): { scores: number[]; deta
     
     // 4. Penale carte in mano
     let handPenalty = 0;
-    for (const p of players) {
-      handPenalty -= state.hands[p].reduce((sum, c) => sum + c.value, 0);
+    for (const p of playerIndices) {
+      if (state.hands[p]) {
+        handPenalty -= state.hands[p].reduce((sum, c) => sum + c.value, 0);
+      }
     }
     
     const total = meldedCardsValue + burracoBonus + closingBonus + pozzettoPenalty + handPenalty;
     
-    details[tId] = {
+    details.push({
+      teamName: team.name || `Squadra ${tId + 1}`,
       meldedCardsValue,
       burracoBonus,
       closingBonus,
       pozzettoPenalty,
       handPenalty,
       total
-    };
+    });
+    scores.push(total);
   }
   
   return {
-    scores: [details[0].total, details[1].total],
+    scores,
     details
   };
 }

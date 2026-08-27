@@ -31,13 +31,13 @@ export function createCard(id: string, suit: Suit | null, rank: Rank): Card {
   };
 }
 
-export function createDeck(): Card[] {
+export function createDeck(numDecks = 2): Card[] {
   const suits: Suit[] = ['♥', '♦', '♣', '♠'];
   const ranks: Rank[] = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
   const deck: Card[] = [];
   let idCounter = 0;
   
-  for (let m = 0; m < 2; m++) {
+  for (let m = 0; m < numDecks; m++) {
     for (const suit of suits) {
       for (const rank of ranks) {
         deck.push(createCard(`c_${idCounter++}`, suit, rank));
